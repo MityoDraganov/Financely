@@ -14,8 +14,6 @@ import {
 } from "@/hooks/service-hooks/use-business-analytics";
 import {
   BusinessAnalyticsBreakdownRow,
-  BusinessAnalyticsCurrencyKpi,
-  BusinessAnalyticsScalarKpi,
   BusinessAnalyticsSummaryPayload,
   CurrencyTotals,
 } from "@/core";
@@ -30,15 +28,20 @@ import {
 import { useDateFormatting } from "@/hooks/use-date-formatting";
 import {
   BarChart3,
-  Calendar,
+  ChevronDown,
+  ChevronUp,
   Download,
   Filter,
   Loader2,
   Save,
   Trash2,
+  TrendingDown,
+  TrendingUp,
   TriangleAlert,
 } from "lucide-react";
 import {
+  Area,
+  AreaChart,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -82,14 +85,10 @@ function getDefaultRange(): { start: string; end: string } {
 
 function formatCurrencyMap(
   totals: CurrencyTotals,
-  opts: {
-    empty?: string;
-  } = {},
+  opts: { empty?: string } = {},
 ): string {
   const entries = Object.entries(totals || {});
-  if (entries.length === 0) {
-    return opts.empty || "-";
-  }
+  if (entries.length === 0) return opts.empty || "—";
   return entries
     .map(([currency, amount]) => {
       try {
@@ -107,19 +106,16 @@ function formatCurrencyMap(
 
 function statusTone(status: string): string {
   const value = status.toLowerCase();
-  if (value.includes("paid") || value.includes("collected") || value.includes("accepted")) {
-    return "bg-emerald-100 text-emerald-800 border-emerald-200";
-  }
-  if (value.includes("overdue") || value.includes("rejected") || value.includes("cancel")) {
-    return "bg-rose-100 text-rose-800 border-rose-200";
-  }
-  if (value.includes("sent") || value.includes("outstanding") || value.includes("invoiced")) {
-    return "bg-amber-100 text-amber-800 border-amber-200";
-  }
-  return "bg-slate-100 text-slate-700 border-slate-200";
+  if (value.includes("paid") || value.includes("collected") || value.includes("accepted"))
+    return "bg-emerald-50 text-emerald-700 border-emerald-200";
+  if (value.includes("overdue") || value.includes("rejected") || value.includes("cancel"))
+    return "bg-rose-50 text-rose-700 border-rose-200";
+  if (value.includes("sent") || value.includes("outstanding") || value.includes("invoiced"))
+    return "bg-amber-50 text-amber-700 border-amber-200";
+  return "bg-slate-100 text-slate-600 border-slate-200";
 }
 
-function sparklinePath(points: number[], width = 90, height = 28): string {
+function sparklinePath(points: number[], width = 80, height = 22): string {
   if (!points.length) return "";
   const min = Math.min(...points);
   const max = Math.max(...points);
@@ -133,94 +129,10 @@ function sparklinePath(points: number[], width = 90, height = 28): string {
     .join(" ");
 }
 
-function KpiCurrencyCard({
-  title,
-  kpi,
-  tone,
-  onClick,
-}: {
-  title: string;
-  kpi: BusinessAnalyticsCurrencyKpi;
-  tone: "healthy" | "warning" | "risk" | "neutral";
-  onClick: () => void;
-}) {
-  const toneClass =
-    tone === "healthy"
-      ? "border-emerald-200"
-      : tone === "warning"
-        ? "border-amber-200"
-        : tone === "risk"
-          ? "border-rose-200"
-          : "border-slate-200";
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`w-full rounded-xl border bg-white p-4 text-left transition hover:shadow-sm ${toneClass}`}
-    >
-      <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-slate-500">
-        {title}
-      </div>
-      <div className="mt-2 text-lg font-semibold text-slate-900">
-        {formatCurrencyMap(kpi.totalsByCurrency)}
-      </div>
-      <div className="mt-1 text-xs text-slate-500">
-        {formatCurrencyMap(kpi.previousTotalsByCurrency, { empty: "No previous period data" })}
-      </div>
-      <div className="mt-2 flex items-center justify-between">
-        <div className="text-xs text-slate-600">Δ {formatDeltaMap(kpi.deltaPctByCurrency)}</div>
-        <svg viewBox="0 0 90 28" className="h-7 w-[90px]">
-          <path d={sparklinePath(kpi.sparkline || [])} fill="none" stroke="currentColor" strokeWidth="1.8" className="text-slate-700" />
-        </svg>
-      </div>
-    </button>
-  );
-}
-
-function KpiScalarCard({
-  title,
-  value,
-  delta,
-  suffix,
-  sample,
-  onClick,
-}: {
-  title: string;
-  value: number | null;
-  delta: number | null;
-  suffix?: string;
-  sample?: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="w-full rounded-xl border border-slate-200 bg-white p-4 text-left transition hover:shadow-sm"
-    >
-      <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-slate-500">{title}</div>
-      <div className="mt-2 text-lg font-semibold text-slate-900">
-        {value === null ? "-" : `${value.toFixed(1)}${suffix || ""}`}
-      </div>
-      <div className="mt-1 text-xs text-slate-600">Δ {formatDelta(delta)}</div>
-      {sample ? <div className="mt-2 text-xs text-slate-500">{sample}</div> : null}
-    </button>
-  );
-}
-
 function formatDelta(delta: number | null): string {
-  if (delta === null || Number.isNaN(delta)) return "n/a";
+  if (delta === null || Number.isNaN(delta)) return "—";
   const sign = delta > 0 ? "+" : "";
   return `${sign}${delta.toFixed(1)}%`;
-}
-
-function formatDeltaMap(deltaMap: Record<string, number | null>): string {
-  const entries = Object.entries(deltaMap || {});
-  if (entries.length === 0) return "n/a";
-  return entries
-    .map(([currency, delta]) => `${currency}: ${formatDelta(delta)}`)
-    .join(" · ");
 }
 
 function toCsv(records: Array<Record<string, unknown>>): string {
@@ -228,16 +140,14 @@ function toCsv(records: Array<Record<string, unknown>>): string {
   const headers = [...new Set(records.flatMap((row) => Object.keys(row)))];
   const escape = (value: unknown) => {
     const text = value === null || value === undefined ? "" : String(value);
-    if (text.includes(",") || text.includes("\n") || text.includes('"')) {
+    if (text.includes(",") || text.includes("\n") || text.includes('"'))
       return `"${text.replace(/"/g, '""')}"`;
-    }
     return text;
   };
-  const lines = [headers.join(",")];
-  for (const row of records) {
-    lines.push(headers.map((header) => escape(row[header])).join(","));
-  }
-  return lines.join("\n");
+  return [
+    headers.join(","),
+    ...records.map((row) => headers.map((h) => escape(row[h])).join(",")),
+  ].join("\n");
 }
 
 function downloadFile(fileName: string, content: string, mimeType: string): void {
@@ -252,15 +162,6 @@ function downloadFile(fileName: string, content: string, mimeType: string): void
   URL.revokeObjectURL(url);
 }
 
-function mapBreakdownLabel(kind: string): string {
-  if (kind === "customers") return "Customer";
-  if (kind === "owners") return "Owner";
-  if (kind === "statuses") return "Status";
-  if (kind === "currencies") return "Currency";
-  if (kind === "markets") return "Market";
-  return "Template";
-}
-
 function buildTrendData(
   selectedCurrency: string,
   summary: ReturnType<typeof useBusinessAnalyticsSummary>["data"],
@@ -269,14 +170,7 @@ function buildTrendData(
   receivables: TrendPoint[];
   proposalFlow: TrendPoint[];
 } {
-  if (!summary) {
-    return {
-      invoicedCollected: [],
-      receivables: [],
-      proposalFlow: [],
-    };
-  }
-
+  if (!summary) return { invoicedCollected: [], receivables: [], proposalFlow: [] };
   return {
     invoicedCollected: summary.trends.invoicedCollected.map((point) => ({
       period: point.period,
@@ -292,15 +186,128 @@ function buildTrendData(
       period: point.period,
       acceptedValue: point.acceptedValueByCurrency[selectedCurrency] || 0,
       invoicedValue: point.invoicedValueByCurrency[selectedCurrency] || 0,
-      acceptedCount: point.acceptedCount,
-      invoicedCount: point.invoicedCount,
     })),
   };
 }
 
-function breakdownRows(rows: BusinessAnalyticsBreakdownRow[], maxRows = 8): BusinessAnalyticsBreakdownRow[] {
-  return rows.slice(0, maxRows);
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+function DeltaBadge({ value }: { value: number | null }) {
+  if (value === null || Number.isNaN(value))
+    return <span className="text-[10px] text-slate-400">—</span>;
+  const up = value > 0;
+  const flat = value === 0;
+  return (
+    <span
+      className={`inline-flex items-center gap-0.5 text-[10px] font-medium ${
+        flat ? "text-slate-500" : up ? "text-emerald-600" : "text-rose-600"
+      }`}
+    >
+      {!flat &&
+        (up ? (
+          <TrendingUp className="h-2.5 w-2.5" />
+        ) : (
+          <TrendingDown className="h-2.5 w-2.5" />
+        ))}
+      {formatDelta(value)}
+    </span>
+  );
 }
+
+function KpiCell({
+  label,
+  value,
+  delta,
+  sparkline,
+  toneColor,
+  onClick,
+}: {
+  label: string;
+  value: string;
+  delta: number | null;
+  sparkline: number[];
+  toneColor: string;
+  onClick?: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex flex-col gap-1.5 px-4 py-3.5 text-left transition-colors hover:bg-slate-50 focus-visible:outline-none"
+    >
+      <span className="text-[10px] font-medium uppercase tracking-widest text-slate-400">
+        {label}
+      </span>
+      <span className="text-xl font-semibold tabular-nums leading-none text-slate-900">
+        {value}
+      </span>
+      <div className="flex w-full items-center justify-between">
+        <DeltaBadge value={delta} />
+        <svg viewBox="0 0 80 22" className="h-4 w-16">
+          {sparkline.length > 0 && (
+            <path
+              d={sparklinePath(sparkline)}
+              fill="none"
+              stroke={toneColor}
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          )}
+        </svg>
+      </div>
+    </button>
+  );
+}
+
+function RankedList({
+  rows,
+  currency,
+  onRowClick,
+}: {
+  rows: BusinessAnalyticsBreakdownRow[];
+  currency: string;
+  onRowClick?: (key: string) => void;
+}) {
+  const maxTotal = Math.max(
+    ...rows.map((r) => r.totalsByCurrency[currency] || 0),
+    1,
+  );
+  return (
+    <div className="space-y-3">
+      {rows.slice(0, 7).map((row) => {
+        const total = row.totalsByCurrency[currency] || 0;
+        const pct = (total / maxTotal) * 100;
+        return (
+          <button
+            key={row.key}
+            type="button"
+            onClick={() => onRowClick?.(row.key)}
+            className="group w-full text-left"
+          >
+            <div className="flex items-center justify-between">
+              <span className="truncate text-xs text-slate-700">{row.label}</span>
+              <div className="ml-3 flex shrink-0 items-center gap-2">
+                <span className="text-[10px] tabular-nums text-slate-400">{row.count}</span>
+                <span className="text-xs font-medium tabular-nums text-slate-800">
+                  {formatCurrencyMap({ [currency]: total })}
+                </span>
+              </div>
+            </div>
+            <div className="mt-1 h-0.5 overflow-hidden rounded-full bg-slate-100">
+              <div
+                className="h-full rounded-full bg-slate-700 transition-colors group-hover:bg-slate-500"
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function AnalyticsPage() {
   const { data: currentOrg, isLoading: currentOrgLoading } = useCurrentOrganization();
@@ -312,6 +319,7 @@ export default function AnalyticsPage() {
   const [comparePrevious, setComparePrevious] = useState(true);
   const [viewName, setViewName] = useState("");
   const [selectedViewId, setSelectedViewId] = useState<string>("none");
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const [state, dispatch] = useReducer(analyticsReducer, DEFAULT_ANALYTICS_STATE);
 
@@ -322,12 +330,7 @@ export default function AnalyticsPage() {
   }, [currentOrg?.id, selectedOrgId]);
 
   const summaryPayload: BusinessAnalyticsSummaryPayload | null = selectedOrgId
-    ? {
-        orgId: selectedOrgId,
-        dateRange,
-        comparePrevious,
-        filters: state.filters,
-      }
+    ? { orgId: selectedOrgId, dateRange, comparePrevious, filters: state.filters }
     : null;
 
   const summaryQuery = useBusinessAnalyticsSummary(summaryPayload);
@@ -348,7 +351,6 @@ export default function AnalyticsPage() {
   const selectedCurrency = useMemo(() => {
     const explicit = state.filters.currencies?.[0];
     if (explicit) return explicit;
-
     const kpiCurrencies = Object.keys(summary?.kpis.totalInvoiced.totalsByCurrency || {});
     return kpiCurrencies[0] || "USD";
   }, [state.filters.currencies, summary?.kpis.totalInvoiced.totalsByCurrency]);
@@ -364,12 +366,12 @@ export default function AnalyticsPage() {
     currentOrgLoading ||
     (summaryPayload !== null && (summaryQuery.isLoading || recordsQuery.isLoading));
 
-  const hasLowData = Boolean(summary) && records?.totalCount !== undefined && records.totalCount < 5;
+  const hasLowData =
+    Boolean(summary) && records?.totalCount !== undefined && records.totalCount < 5;
 
   const filterOptions = useMemo(() => {
     const fromRows = (rows: BusinessAnalyticsBreakdownRow[]) =>
       rows.map((row) => ({ value: row.key, label: row.label }));
-
     return {
       statuses: fromRows(summary?.breakdowns.statuses || []),
       customers: fromRows(summary?.breakdowns.customers || []),
@@ -404,7 +406,6 @@ export default function AnalyticsPage() {
       dispatch({ type: "set_overdue_only", value: false });
       return;
     }
-
     dispatch({
       type: "remove_filter_value",
       key: pillKey as
@@ -430,7 +431,7 @@ export default function AnalyticsPage() {
       csv,
       "text/csv;charset=utf-8",
     );
-    toast.success("Current records exported");
+    toast.success("Records exported");
   };
 
   const handleExportConfig = () => {
@@ -441,30 +442,21 @@ export default function AnalyticsPage() {
       JSON.stringify(payload, null, 2),
       "application/json;charset=utf-8",
     );
-    toast.success("Filter and table config exported");
+    toast.success("Filter config exported");
   };
 
   const handleSaveView = async () => {
     const trimmed = viewName.trim();
-    if (!trimmed) {
-      toast.error("Enter a view name");
-      return;
-    }
-
+    if (!trimmed) { toast.error("Enter a view name"); return; }
     const payload = buildAnalyticsViewPayload(state);
-
     try {
       await createView.mutateAsync({
         name: trimmed,
-        filters: {
-          ...payload.filters,
-          dateRange,
-          comparePrevious,
-        },
+        filters: { ...payload.filters, dateRange, comparePrevious },
         tableConfig: payload.tableConfig,
       });
       setViewName("");
-      toast.success("Saved view created");
+      toast.success("View saved");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to save view");
     }
@@ -480,15 +472,11 @@ export default function AnalyticsPage() {
       await updateView.mutateAsync({
         id: selectedViewId,
         data: {
-          filters: {
-            ...payload.filters,
-            dateRange,
-            comparePrevious,
-          },
+          filters: { ...payload.filters, dateRange, comparePrevious },
           tableConfig: payload.tableConfig,
         },
       });
-      toast.success("Saved view updated");
+      toast.success("View updated");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to update view");
     }
@@ -502,7 +490,7 @@ export default function AnalyticsPage() {
     try {
       await deleteView.mutateAsync(selectedViewId);
       setSelectedViewId("none");
-      toast.success("Saved view deleted");
+      toast.success("View deleted");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to delete view");
     }
@@ -511,24 +499,13 @@ export default function AnalyticsPage() {
   const handleApplySavedView = (viewId: string) => {
     setSelectedViewId(viewId);
     if (viewId === "none") return;
-
     const view = views.find((item) => item.id === viewId);
     if (!view) return;
-
-    dispatch({
-      type: "apply_saved_view",
-      filters: view.filters,
-      tableConfig: view.tableConfig,
-    });
-
-    if (view.filters.dateRange) {
-      setDateRange(view.filters.dateRange);
-    }
-    if (typeof view.filters.comparePrevious === "boolean") {
+    dispatch({ type: "apply_saved_view", filters: view.filters, tableConfig: view.tableConfig });
+    if (view.filters.dateRange) setDateRange(view.filters.dateRange);
+    if (typeof view.filters.comparePrevious === "boolean")
       setComparePrevious(view.filters.comparePrevious);
-    }
-
-    toast.success(`Applied view: ${view.name}`);
+    toast.success(`Applied: ${view.name}`);
   };
 
   const tableColumns = useMemo(() => {
@@ -539,739 +516,1000 @@ export default function AnalyticsPage() {
   const activeTab = state.table.tab;
   const totalPages = records ? Math.max(1, Math.ceil(records.totalCount / records.pageSize)) : 1;
 
-  return (
-    <div className="min-h-full bg-[#f7f9fc] px-4 pb-8 pt-5 sm:px-6 lg:px-8">
-      <div className="mx-auto w-full max-w-[1600px] space-y-5">
-        <header className="rounded-xl border border-slate-200 bg-white px-5 py-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Business Analytics</h1>
-              <p className="mt-1 text-sm text-slate-600">
-                Commercial-to-cash control surface: proposals, invoicing, receivables, and collection performance.
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={handleExportConfig}>
-                <Download className="mr-2 h-4 w-4" />
-                Export config
-              </Button>
-              <Button size="sm" onClick={handleExportRows}>
-                <Download className="mr-2 h-4 w-4" />
-                Export rows
-              </Button>
-            </div>
-          </div>
-        </header>
+  const compactFormat = (val: number) =>
+    new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(val);
 
-        <section className="sticky top-0 z-20 rounded-xl border border-slate-200 bg-white/95 p-4 backdrop-blur">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-            <div className="space-y-1 xl:col-span-2">
-              <Label>Organization</Label>
+  return (
+    <div className="min-h-full bg-slate-50 pb-10 pt-5">
+      <div className="mx-auto w-full max-w-[1600px] space-y-4 px-4 sm:px-6">
+
+        {/* ── Header ──────────────────────────────────────────────────────── */}
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-lg font-semibold text-slate-900">Business Analytics</h1>
+            <p className="mt-0.5 text-xs text-slate-400">
+              {dateRange.start} – {dateRange.end}
+              {comparePrevious ? " · vs prior period" : ""}
+              {summary?.trust.lastUpdatedAt
+                ? ` · updated ${formatDateShort(new Date(summary.trust.lastUpdatedAt))}`
+                : ""}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            {organizations.length > 1 && (
               <Select value={selectedOrgId || ""} onValueChange={setSelectedOrgId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select organization" />
+                <SelectTrigger className="h-8 w-[160px] text-xs">
+                  <SelectValue placeholder="Organization" />
                 </SelectTrigger>
                 <SelectContent>
                   {organizations.map((org) => (
-                    <SelectItem key={org.id} value={org.id}>
-                      {org.name}
-                    </SelectItem>
+                    <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+            )}
 
-            <div className="space-y-1">
-              <Label>Date start</Label>
-              <Input
-                type="date"
-                value={dateRange.start}
-                onChange={(event) => setDateRange((prev) => ({ ...prev, start: event.target.value }))}
-                max={dateRange.end}
-              />
-            </div>
-
-            <div className="space-y-1">
-              <Label>Date end</Label>
-              <Input
-                type="date"
-                value={dateRange.end}
-                onChange={(event) => setDateRange((prev) => ({ ...prev, end: event.target.value }))}
-                min={dateRange.start}
-                max={getTodayIso()}
-              />
-            </div>
-
-            <div className="space-y-1">
-              <Label>Saved views</Label>
-              <Select value={selectedViewId} onValueChange={handleApplySavedView}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select view" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No saved view</SelectItem>
-                  {views.map((view) => (
-                    <SelectItem key={view.id} value={view.id}>
-                      {view.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-end gap-2">
-              <div className="flex h-10 items-center gap-2 rounded-md border border-slate-200 px-3">
-                <Switch checked={comparePrevious} onCheckedChange={setComparePrevious} id="comparePrevious" />
-                <Label htmlFor="comparePrevious" className="cursor-pointer text-xs">Compare previous</Label>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => handleQuickRange(7)}>
-              <Calendar className="mr-2 h-4 w-4" />7D
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => handleQuickRange(30)}>
-              <Calendar className="mr-2 h-4 w-4" />30D
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => handleQuickRange(90)}>
-              <Calendar className="mr-2 h-4 w-4" />90D
-            </Button>
-            <Separator orientation="vertical" className="mx-1 h-6" />
             <Input
-              className="h-9 w-[220px]"
-              placeholder="Save current view as..."
-              value={viewName}
-              onChange={(event) => setViewName(event.target.value)}
+              type="date"
+              className="h-8 w-[130px] text-xs"
+              value={dateRange.start}
+              onChange={(e) => setDateRange((prev) => ({ ...prev, start: e.target.value }))}
+              max={dateRange.end}
             />
-            <Button size="sm" variant="outline" onClick={handleSaveView}>
-              <Save className="mr-2 h-4 w-4" />Save view
-            </Button>
-            <Button size="sm" variant="outline" onClick={handleUpdateView}>
-              Update selected
-            </Button>
-            <Button size="sm" variant="outline" onClick={handleDeleteView}>
-              <Trash2 className="mr-2 h-4 w-4" />Delete
+            <span className="text-xs text-slate-400">–</span>
+            <Input
+              type="date"
+              className="h-8 w-[130px] text-xs"
+              value={dateRange.end}
+              onChange={(e) => setDateRange((prev) => ({ ...prev, end: e.target.value }))}
+              min={dateRange.start}
+              max={getTodayIso()}
+            />
+
+            {[7, 30, 90].map((d) => (
+              <Button
+                key={d}
+                variant="outline"
+                size="sm"
+                className="h-8 px-2.5 text-xs"
+                onClick={() => handleQuickRange(d)}
+              >
+                {d}D
+              </Button>
+            ))}
+
+            <Separator orientation="vertical" className="mx-0.5 h-5" />
+
+            <div className="flex h-8 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5">
+              <Switch
+                checked={comparePrevious}
+                onCheckedChange={setComparePrevious}
+                id="compare"
+              />
+              <Label htmlFor="compare" className="cursor-pointer text-xs text-slate-600">
+                Compare
+              </Label>
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-2.5 text-xs"
+              onClick={() => setFiltersOpen((v) => !v)}
+            >
+              <Filter className="mr-1.5 h-3.5 w-3.5" />
+              Filters
+              {pills.length > 0 && (
+                <span className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-slate-800 px-1 text-[10px] text-white">
+                  {pills.length}
+                </span>
+              )}
+              {filtersOpen ? (
+                <ChevronUp className="ml-1 h-3 w-3" />
+              ) : (
+                <ChevronDown className="ml-1 h-3 w-3" />
+              )}
             </Button>
 
-            <div className="ml-auto text-xs text-slate-500">
-              Last updated: {summary?.trust.lastUpdatedAt ? formatDateShort(new Date(summary.trust.lastUpdatedAt)) : "-"}
-            </div>
+            <Select value={selectedViewId} onValueChange={handleApplySavedView}>
+              <SelectTrigger className="h-8 w-[130px] text-xs">
+                <SelectValue placeholder="Saved view" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No saved view</SelectItem>
+                {views.map((view) => (
+                  <SelectItem key={view.id} value={view.id}>{view.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Button variant="outline" size="sm" className="h-8 px-2.5 text-xs" onClick={handleExportRows}>
+              <Download className="mr-1.5 h-3.5 w-3.5" />
+              Export
+            </Button>
           </div>
+        </div>
 
-          <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
-            <div className="space-y-1">
-              <Label>Document type</Label>
-              <Select onValueChange={(value) => dispatch({ type: "add_filter_value", key: "documentTypes", value })}>
-                <SelectTrigger className="h-9"><SelectValue placeholder="All" /></SelectTrigger>
-                <SelectContent>
-                  {filterOptions.documentTypes.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+        {/* ── Filter panel ─────────────────────────────────────────────────── */}
+        {filtersOpen && (
+          <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+              {[
+                {
+                  label: "Document type",
+                  options: filterOptions.documentTypes,
+                  key: "documentTypes" as const,
+                },
+                { label: "Status", options: filterOptions.statuses, key: "statuses" as const },
+                {
+                  label: "Customer",
+                  options: filterOptions.customers,
+                  key: "customerKeys" as const,
+                },
+                { label: "Owner", options: filterOptions.owners, key: "ownerIds" as const },
+                {
+                  label: "Currency",
+                  options: filterOptions.currencies,
+                  key: "currencies" as const,
+                },
+                { label: "Market", options: filterOptions.markets, key: "markets" as const },
+                {
+                  label: "Payment",
+                  options: filterOptions.paymentStates,
+                  key: "paymentStates" as const,
+                },
+              ].map(({ label, options, key }) => (
+                <div key={key} className="space-y-1">
+                  <Label className="text-xs text-slate-500">{label}</Label>
+                  <Select
+                    onValueChange={(v) =>
+                      dispatch({ type: "add_filter_value", key, value: v })
+                    }
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="All" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {options.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ))}
             </div>
-            <div className="space-y-1">
-              <Label>Status</Label>
-              <Select onValueChange={(value) => dispatch({ type: "add_filter_value", key: "statuses", value })}>
-                <SelectTrigger className="h-9"><SelectValue placeholder="All" /></SelectTrigger>
-                <SelectContent>
-                  {filterOptions.statuses.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label>Customer</Label>
-              <Select onValueChange={(value) => dispatch({ type: "add_filter_value", key: "customerKeys", value })}>
-                <SelectTrigger className="h-9"><SelectValue placeholder="All" /></SelectTrigger>
-                <SelectContent>
-                  {filterOptions.customers.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label>Owner</Label>
-              <Select onValueChange={(value) => dispatch({ type: "add_filter_value", key: "ownerIds", value })}>
-                <SelectTrigger className="h-9"><SelectValue placeholder="All" /></SelectTrigger>
-                <SelectContent>
-                  {filterOptions.owners.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label>Currency / market</Label>
-              <div className="grid grid-cols-2 gap-2">
-                <Select onValueChange={(value) => dispatch({ type: "add_filter_value", key: "currencies", value })}>
-                  <SelectTrigger className="h-9"><SelectValue placeholder="Currency" /></SelectTrigger>
-                  <SelectContent>
-                    {filterOptions.currencies.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Select onValueChange={(value) => dispatch({ type: "add_filter_value", key: "markets", value })}>
-                  <SelectTrigger className="h-9"><SelectValue placeholder="Market" /></SelectTrigger>
-                  <SelectContent>
-                    {filterOptions.markets.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="space-y-1">
-              <Label>Payment state</Label>
-              <Select onValueChange={(value) => dispatch({ type: "add_filter_value", key: "paymentStates", value })}>
-                <SelectTrigger className="h-9"><SelectValue placeholder="All" /></SelectTrigger>
-                <SelectContent>
-                  {filterOptions.paymentStates.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-end">
-              <div className="flex h-9 w-full items-center justify-between rounded-md border border-slate-200 px-3">
-                <span className="text-xs text-slate-600">Overdue only</span>
+
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
                 <Switch
                   checked={Boolean(state.filters.overdueOnly)}
-                  onCheckedChange={(checked) => dispatch({ type: "set_overdue_only", value: checked })}
+                  onCheckedChange={(v) => dispatch({ type: "set_overdue_only", value: v })}
+                  id="overdue-only"
                 />
+                <Label htmlFor="overdue-only" className="cursor-pointer text-xs text-slate-600">
+                  Overdue only
+                </Label>
               </div>
-            </div>
-            <div className="flex items-end">
+
               <Button
-                variant="outline"
-                className="h-9 w-full"
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs text-slate-500"
                 onClick={() => dispatch({ type: "clear_filters" })}
               >
-                <Filter className="mr-2 h-4 w-4" />Clear filters
+                Clear all
+              </Button>
+
+              <Separator orientation="vertical" className="mx-1 h-4" />
+
+              <Input
+                className="h-7 w-[180px] text-xs"
+                placeholder="Name this view…"
+                value={viewName}
+                onChange={(e) => setViewName(e.target.value)}
+              />
+              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={handleSaveView}>
+                <Save className="mr-1 h-3 w-3" />Save
+              </Button>
+              {selectedViewId && selectedViewId !== "none" && (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs"
+                    onClick={handleUpdateView}
+                  >
+                    Update
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 text-xs text-rose-600 hover:text-rose-700"
+                    onClick={handleDeleteView}
+                  >
+                    <Trash2 className="mr-1 h-3 w-3" />Delete
+                  </Button>
+                </>
+              )}
+
+              <Button
+                variant="ghost"
+                size="sm"
+                className="ml-auto h-7 text-xs text-slate-400"
+                onClick={handleExportConfig}
+              >
+                Export config
               </Button>
             </div>
           </div>
+        )}
 
-          {pills.length > 0 ? (
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              {pills.map((pill) => (
-                <Badge
-                  key={`${pill.key}:${pill.value}`}
-                  variant="outline"
-                  className="cursor-pointer border-slate-300 bg-slate-50 text-slate-700"
-                  onClick={() => handlePillRemove(pill.key, pill.value)}
-                >
-                  {pill.label} ×
-                </Badge>
-              ))}
-            </div>
-          ) : null}
-        </section>
-
-        {isLoading ? (
-          <div className="flex h-56 items-center justify-center rounded-xl border border-slate-200 bg-white">
-            <Loader2 className="h-7 w-7 animate-spin text-slate-600" />
+        {/* ── Active filter pills ──────────────────────────────────────────── */}
+        {pills.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {pills.map((pill) => (
+              <Badge
+                key={`${pill.key}:${pill.value}`}
+                variant="outline"
+                className="h-6 cursor-pointer border-slate-300 bg-white text-xs text-slate-600 hover:bg-slate-50"
+                onClick={() => handlePillRemove(pill.key, pill.value)}
+              >
+                {pill.label} ×
+              </Badge>
+            ))}
           </div>
-        ) : null}
+        )}
+
+        {/* ── Loading ──────────────────────────────────────────────────────── */}
+        {isLoading && (
+          <div className="flex h-48 items-center justify-center rounded-lg border border-slate-200 bg-white">
+            <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+          </div>
+        )}
+
+        {/* ── Empty state ──────────────────────────────────────────────────── */}
+        {!isLoading && summary && records && records.totalCount === 0 && (
+          <div className="rounded-lg border border-dashed border-slate-300 bg-white py-16 text-center">
+            <BarChart3 className="mx-auto h-8 w-8 text-slate-300" />
+            <p className="mt-3 text-sm font-medium text-slate-700">No data for this period</p>
+            <p className="mt-1 text-xs text-slate-400">
+              Create proposals or invoices to start seeing analytics.
+            </p>
+          </div>
+        )}
 
         {!isLoading && summary && (
           <>
-            <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <KpiCurrencyCard
-                title="Total invoiced"
-                kpi={summary.kpis.totalInvoiced}
-                tone="neutral"
-                onClick={() => dispatch({ type: "set_filter_array", key: "statuses", values: ["sent", "paid"] })}
-              />
-              <KpiCurrencyCard
-                title="Collected"
-                kpi={summary.kpis.collectedAmount}
-                tone="healthy"
-                onClick={() => dispatch({ type: "set_filter_array", key: "statuses", values: ["paid"] })}
-              />
-              <KpiCurrencyCard
-                title="Outstanding"
-                kpi={summary.kpis.outstandingAmount}
-                tone="warning"
-                onClick={() => dispatch({ type: "set_filter_array", key: "statuses", values: ["sent"] })}
-              />
-              <KpiCurrencyCard
-                title="Overdue"
-                kpi={summary.kpis.overdueAmount}
-                tone="risk"
-                onClick={() => {
-                  dispatch({ type: "set_filter_array", key: "statuses", values: ["sent"] });
-                  dispatch({ type: "set_overdue_only", value: true });
-                }}
-              />
-              <KpiCurrencyCard
-                title="Proposal accepted value"
-                kpi={summary.kpis.proposalAcceptedValue}
-                tone="neutral"
-                onClick={() => dispatch({ type: "set_filter_array", key: "documentTypes", values: ["proposal"] })}
-              />
-              <KpiScalarCard
-                title="Proposal → invoice conversion"
-                value={summary.kpis.proposalToInvoiceConversionRate.value}
-                delta={summary.kpis.proposalToInvoiceConversionRate.deltaPct}
-                suffix="%"
-                onClick={() => dispatch({ type: "set_tab", tab: "proposals" })}
-              />
-              <KpiScalarCard
-                title="Average collection days"
-                value={summary.kpis.averageCollectionDays.value}
-                delta={summary.kpis.averageCollectionDays.deltaPct}
-                suffix=" d"
-                sample={`Sample ${summary.kpis.averageCollectionDays.sampleSize}`}
-                onClick={() => dispatch({ type: "set_tab", tab: "collections" })}
-              />
-            </section>
-
-            <section className="grid gap-4 xl:grid-cols-3">
-              <div className="rounded-xl border border-slate-200 bg-white p-4 xl:col-span-2">
-                <div className="mb-3 flex items-center justify-between">
-                  <h2 className="text-sm font-semibold uppercase tracking-[0.08em] text-slate-600">Trend section ({selectedCurrency})</h2>
-                </div>
-                <div className="grid gap-4 lg:grid-cols-2">
-                  <div className="h-56 rounded-lg border border-slate-200 p-3">
-                    <div className="mb-2 text-sm font-medium text-slate-700">Invoiced vs collected</div>
-                    <ResponsiveContainer width="100%" height="88%">
-                      <LineChart data={trendData.invoicedCollected}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                        <XAxis dataKey="period" tick={{ fontSize: 10 }} />
-                        <YAxis tick={{ fontSize: 10 }} />
-                        <Tooltip />
-                        <Line dataKey="invoiced" type="monotone" stroke="#0f172a" dot={false} strokeWidth={2} />
-                        <Line dataKey="collected" type="monotone" stroke="#16a34a" dot={false} strokeWidth={2} />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="h-56 rounded-lg border border-slate-200 p-3">
-                    <div className="mb-2 text-sm font-medium text-slate-700">Outstanding vs overdue</div>
-                    <ResponsiveContainer width="100%" height="88%">
-                      <LineChart data={trendData.receivables}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                        <XAxis dataKey="period" tick={{ fontSize: 10 }} />
-                        <YAxis tick={{ fontSize: 10 }} />
-                        <Tooltip />
-                        <Line dataKey="outstanding" type="monotone" stroke="#f59e0b" dot={false} strokeWidth={2} />
-                        <Line dataKey="overdue" type="monotone" stroke="#e11d48" dot={false} strokeWidth={2} />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="h-56 rounded-lg border border-slate-200 p-3 lg:col-span-2">
-                    <div className="mb-2 text-sm font-medium text-slate-700">Proposal flow value</div>
-                    <ResponsiveContainer width="100%" height="88%">
-                      <LineChart data={trendData.proposalFlow}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                        <XAxis dataKey="period" tick={{ fontSize: 10 }} />
-                        <YAxis tick={{ fontSize: 10 }} />
-                        <Tooltip />
-                        <Line dataKey="acceptedValue" type="monotone" stroke="#1d4ed8" dot={false} strokeWidth={2} />
-                        <Line dataKey="invoicedValue" type="monotone" stroke="#16a34a" dot={false} strokeWidth={2} />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
+            {/* ── KPI strip ──────────────────────────────────────────────────── */}
+            <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+              <div className="grid divide-x divide-slate-100 grid-cols-2 sm:grid-cols-4 xl:grid-cols-7">
+                <KpiCell
+                  label="Total Invoiced"
+                  value={formatCurrencyMap(summary.kpis.totalInvoiced.totalsByCurrency)}
+                  delta={Object.values(summary.kpis.totalInvoiced.deltaPctByCurrency)[0] ?? null}
+                  sparkline={summary.kpis.totalInvoiced.sparkline}
+                  toneColor="#475569"
+                  onClick={() =>
+                    dispatch({ type: "set_filter_array", key: "statuses", values: ["sent", "paid"] })
+                  }
+                />
+                <KpiCell
+                  label="Collected"
+                  value={formatCurrencyMap(summary.kpis.collectedAmount.totalsByCurrency)}
+                  delta={Object.values(summary.kpis.collectedAmount.deltaPctByCurrency)[0] ?? null}
+                  sparkline={summary.kpis.collectedAmount.sparkline}
+                  toneColor="#16a34a"
+                  onClick={() =>
+                    dispatch({ type: "set_filter_array", key: "statuses", values: ["paid"] })
+                  }
+                />
+                <KpiCell
+                  label="Outstanding"
+                  value={formatCurrencyMap(summary.kpis.outstandingAmount.totalsByCurrency)}
+                  delta={Object.values(summary.kpis.outstandingAmount.deltaPctByCurrency)[0] ?? null}
+                  sparkline={summary.kpis.outstandingAmount.sparkline}
+                  toneColor="#f59e0b"
+                  onClick={() =>
+                    dispatch({ type: "set_filter_array", key: "statuses", values: ["sent"] })
+                  }
+                />
+                <KpiCell
+                  label="Overdue"
+                  value={formatCurrencyMap(summary.kpis.overdueAmount.totalsByCurrency)}
+                  delta={Object.values(summary.kpis.overdueAmount.deltaPctByCurrency)[0] ?? null}
+                  sparkline={summary.kpis.overdueAmount.sparkline}
+                  toneColor="#e11d48"
+                  onClick={() => {
+                    dispatch({ type: "set_filter_array", key: "statuses", values: ["sent"] });
+                    dispatch({ type: "set_overdue_only", value: true });
+                  }}
+                />
+                <KpiCell
+                  label="Proposals Accepted"
+                  value={formatCurrencyMap(summary.kpis.proposalAcceptedValue.totalsByCurrency)}
+                  delta={
+                    Object.values(summary.kpis.proposalAcceptedValue.deltaPctByCurrency)[0] ?? null
+                  }
+                  sparkline={summary.kpis.proposalAcceptedValue.sparkline}
+                  toneColor="#2563eb"
+                  onClick={() =>
+                    dispatch({
+                      type: "set_filter_array",
+                      key: "documentTypes",
+                      values: ["proposal"],
+                    })
+                  }
+                />
+                <KpiCell
+                  label="Proposal → Invoice"
+                  value={
+                    summary.kpis.proposalToInvoiceConversionRate.value !== null
+                      ? `${summary.kpis.proposalToInvoiceConversionRate.value.toFixed(1)}%`
+                      : "—"
+                  }
+                  delta={summary.kpis.proposalToInvoiceConversionRate.deltaPct}
+                  sparkline={summary.kpis.proposalToInvoiceConversionRate.sparkline}
+                  toneColor="#7c3aed"
+                  onClick={() => dispatch({ type: "set_tab", tab: "proposals" })}
+                />
+                <KpiCell
+                  label="Avg Collection"
+                  value={
+                    summary.kpis.averageCollectionDays.value !== null
+                      ? `${summary.kpis.averageCollectionDays.value.toFixed(0)}d`
+                      : "—"
+                  }
+                  delta={summary.kpis.averageCollectionDays.deltaPct}
+                  sparkline={summary.kpis.averageCollectionDays.sparkline}
+                  toneColor="#0891b2"
+                  onClick={() => dispatch({ type: "set_tab", tab: "collections" })}
+                />
               </div>
+            </div>
 
-              <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <h2 className="text-sm font-semibold uppercase tracking-[0.08em] text-slate-600">Breakdowns</h2>
-                <div className="mt-3 space-y-3">
-                  {([
-                    ["customers", summary.breakdowns.customers],
-                    ["owners", summary.breakdowns.owners],
-                    ["statuses", summary.breakdowns.statuses],
-                    ["currencies", summary.breakdowns.currencies],
-                    ["markets", summary.breakdowns.markets],
-                    ["templates", summary.breakdowns.templates],
-                  ] as const).map(([kind, rows]) => (
-                    <div key={kind} className="rounded-lg border border-slate-200 p-3">
-                      <div className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
-                        {mapBreakdownLabel(kind)}
-                      </div>
-                      <div className="space-y-1">
-                        {breakdownRows(rows, 4).map((row) => (
-                          <button
-                            type="button"
-                            key={`${kind}:${row.key}`}
-                            className="flex w-full items-center justify-between rounded-md px-2 py-1 text-left hover:bg-slate-50"
-                            onClick={() => {
-                              if (kind === "customers") {
-                                dispatch({ type: "add_filter_value", key: "customerKeys", value: row.key });
-                              } else if (kind === "owners") {
-                                dispatch({ type: "add_filter_value", key: "ownerIds", value: row.key });
-                              } else if (kind === "statuses") {
-                                dispatch({ type: "add_filter_value", key: "statuses", value: row.key });
-                              } else if (kind === "currencies") {
-                                dispatch({ type: "add_filter_value", key: "currencies", value: row.key });
-                              } else if (kind === "markets") {
-                                dispatch({ type: "add_filter_value", key: "markets", value: row.key });
-                              }
-                            }}
-                          >
-                            <span className="truncate text-xs text-slate-700">{row.label}</span>
-                            <span className="ml-2 text-xs text-slate-500">{formatCurrencyMap(row.totalsByCurrency)}</span>
-                          </button>
-                        ))}
+            {/* ── Charts + Breakdowns ──────────────────────────────────────── */}
+            <div className="grid gap-4 xl:grid-cols-5">
+              {/* Charts */}
+              <div className="space-y-4 xl:col-span-3">
+                <div className="rounded-lg border border-slate-200 bg-white p-4">
+                  <div className="mb-3 flex items-center justify-between">
+                    <h2 className="text-sm font-medium text-slate-700">Revenue trend</h2>
+                    <div className="flex items-center gap-3 text-[10px] text-slate-400">
+                      <span className="flex items-center gap-1">
+                        <span className="inline-block h-2 w-4 rounded-sm bg-slate-800" />
+                        Invoiced
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <span className="inline-block h-2 w-4 rounded-sm bg-emerald-600" />
+                        Collected
+                      </span>
+                      <span className="text-slate-300">|</span>
+                      <span>{selectedCurrency}</span>
+                    </div>
+                  </div>
+                  <div className="h-52">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart
+                        data={trendData.invoicedCollected}
+                        margin={{ top: 4, right: 0, left: -16, bottom: 0 }}
+                      >
+                        <defs>
+                          <linearGradient id="gInvoiced" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#0f172a" stopOpacity={0.07} />
+                            <stop offset="100%" stopColor="#0f172a" stopOpacity={0} />
+                          </linearGradient>
+                          <linearGradient id="gCollected" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#16a34a" stopOpacity={0.07} />
+                            <stop offset="100%" stopColor="#16a34a" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid
+                          strokeDasharray="2 4"
+                          stroke="#f1f5f9"
+                          vertical={false}
+                        />
+                        <XAxis
+                          dataKey="period"
+                          tick={{ fontSize: 10, fill: "#94a3b8" }}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <YAxis
+                          tick={{ fontSize: 10, fill: "#94a3b8" }}
+                          axisLine={false}
+                          tickLine={false}
+                          tickFormatter={compactFormat}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            fontSize: 12,
+                            border: "1px solid #e2e8f0",
+                            borderRadius: 6,
+                            boxShadow: "0 1px 4px rgba(0,0,0,.06)",
+                          }}
+                          formatter={(val: number) => [compactFormat(val)]}
+                        />
+                        <Area
+                          dataKey="invoiced"
+                          type="monotone"
+                          stroke="#0f172a"
+                          fill="url(#gInvoiced)"
+                          strokeWidth={1.5}
+                          dot={false}
+                          name="Invoiced"
+                        />
+                        <Area
+                          dataKey="collected"
+                          type="monotone"
+                          stroke="#16a34a"
+                          fill="url(#gCollected)"
+                          strokeWidth={1.5}
+                          dot={false}
+                          name="Collected"
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="rounded-lg border border-slate-200 bg-white p-4">
+                    <div className="mb-3 flex items-center justify-between">
+                      <h2 className="text-sm font-medium text-slate-700">Receivables</h2>
+                      <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                        <span className="flex items-center gap-1">
+                          <span className="inline-block h-px w-4 bg-amber-400" />
+                          Outstanding
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <span className="inline-block h-px w-4 bg-rose-500" />
+                          Overdue
+                        </span>
                       </div>
                     </div>
-                  ))}
+                    <div className="h-40">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart
+                          data={trendData.receivables}
+                          margin={{ top: 4, right: 0, left: -16, bottom: 0 }}
+                        >
+                          <CartesianGrid
+                            strokeDasharray="2 4"
+                            stroke="#f1f5f9"
+                            vertical={false}
+                          />
+                          <XAxis
+                            dataKey="period"
+                            tick={{ fontSize: 9, fill: "#94a3b8" }}
+                            axisLine={false}
+                            tickLine={false}
+                          />
+                          <YAxis
+                            tick={{ fontSize: 9, fill: "#94a3b8" }}
+                            axisLine={false}
+                            tickLine={false}
+                            tickFormatter={compactFormat}
+                          />
+                          <Tooltip
+                            contentStyle={{
+                              fontSize: 11,
+                              border: "1px solid #e2e8f0",
+                              borderRadius: 6,
+                            }}
+                            formatter={(val: number) => [compactFormat(val)]}
+                          />
+                          <Line
+                            dataKey="outstanding"
+                            type="monotone"
+                            stroke="#f59e0b"
+                            dot={false}
+                            strokeWidth={1.5}
+                            name="Outstanding"
+                          />
+                          <Line
+                            dataKey="overdue"
+                            type="monotone"
+                            stroke="#e11d48"
+                            dot={false}
+                            strokeWidth={1.5}
+                            name="Overdue"
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-slate-200 bg-white p-4">
+                    <div className="mb-3 flex items-center justify-between">
+                      <h2 className="text-sm font-medium text-slate-700">Proposal flow</h2>
+                      <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                        <span className="flex items-center gap-1">
+                          <span className="inline-block h-px w-4 bg-blue-600" />
+                          Accepted
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <span className="inline-block h-px w-4 bg-emerald-600" />
+                          Invoiced
+                        </span>
+                      </div>
+                    </div>
+                    <div className="h-40">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart
+                          data={trendData.proposalFlow}
+                          margin={{ top: 4, right: 0, left: -16, bottom: 0 }}
+                        >
+                          <CartesianGrid
+                            strokeDasharray="2 4"
+                            stroke="#f1f5f9"
+                            vertical={false}
+                          />
+                          <XAxis
+                            dataKey="period"
+                            tick={{ fontSize: 9, fill: "#94a3b8" }}
+                            axisLine={false}
+                            tickLine={false}
+                          />
+                          <YAxis
+                            tick={{ fontSize: 9, fill: "#94a3b8" }}
+                            axisLine={false}
+                            tickLine={false}
+                            tickFormatter={compactFormat}
+                          />
+                          <Tooltip
+                            contentStyle={{
+                              fontSize: 11,
+                              border: "1px solid #e2e8f0",
+                              borderRadius: 6,
+                            }}
+                            formatter={(val: number) => [compactFormat(val)]}
+                          />
+                          <Line
+                            dataKey="acceptedValue"
+                            type="monotone"
+                            stroke="#2563eb"
+                            dot={false}
+                            strokeWidth={1.5}
+                            name="Accepted"
+                          />
+                          <Line
+                            dataKey="invoicedValue"
+                            type="monotone"
+                            stroke="#16a34a"
+                            dot={false}
+                            strokeWidth={1.5}
+                            name="Invoiced"
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </section>
 
-            <section className="grid gap-4 xl:grid-cols-3">
-              <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <h2 className="text-sm font-semibold uppercase tracking-[0.08em] text-slate-600">Aging buckets</h2>
-                <div className="mt-3 space-y-2">
-                  {summary.risk.agingBuckets.map((bucket) => (
-                    <button
-                      type="button"
-                      key={bucket.bucket}
-                      className="flex w-full items-center justify-between rounded-md border border-slate-200 px-3 py-2 text-left hover:bg-slate-50"
-                      onClick={() => {
-                        dispatch({ type: "set_overdue_only", value: true });
-                        dispatch({ type: "set_tab", tab: "documents" });
-                      }}
-                    >
-                      <span className="text-sm text-slate-700">{bucket.label}</span>
-                      <span className="text-xs text-slate-500">
-                        {bucket.invoiceCount} · {formatCurrencyMap(bucket.totalsByCurrency)}
-                      </span>
-                    </button>
-                  ))}
+              {/* Breakdowns panel */}
+              <div className="rounded-lg border border-slate-200 bg-white p-4 xl:col-span-2">
+                <h2 className="mb-3 text-sm font-medium text-slate-700">Breakdown</h2>
+                <Tabs defaultValue="customers">
+                  <TabsList className="h-7 w-full bg-slate-100 p-0.5">
+                    <TabsTrigger value="customers" className="h-6 flex-1 text-xs">
+                      Customers
+                    </TabsTrigger>
+                    <TabsTrigger value="statuses" className="h-6 flex-1 text-xs">
+                      Statuses
+                    </TabsTrigger>
+                    <TabsTrigger value="markets" className="h-6 flex-1 text-xs">
+                      Markets
+                    </TabsTrigger>
+                    <TabsTrigger value="owners" className="h-6 flex-1 text-xs">
+                      Owners
+                    </TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="customers" className="mt-4">
+                    <RankedList
+                      rows={summary.breakdowns.customers}
+                      currency={selectedCurrency}
+                      onRowClick={(key) =>
+                        dispatch({ type: "add_filter_value", key: "customerKeys", value: key })
+                      }
+                    />
+                  </TabsContent>
+                  <TabsContent value="statuses" className="mt-4">
+                    <RankedList
+                      rows={summary.breakdowns.statuses}
+                      currency={selectedCurrency}
+                      onRowClick={(key) =>
+                        dispatch({ type: "add_filter_value", key: "statuses", value: key })
+                      }
+                    />
+                  </TabsContent>
+                  <TabsContent value="markets" className="mt-4">
+                    <RankedList
+                      rows={summary.breakdowns.markets}
+                      currency={selectedCurrency}
+                      onRowClick={(key) =>
+                        dispatch({ type: "add_filter_value", key: "markets", value: key })
+                      }
+                    />
+                  </TabsContent>
+                  <TabsContent value="owners" className="mt-4">
+                    <RankedList
+                      rows={summary.breakdowns.owners}
+                      currency={selectedCurrency}
+                      onRowClick={(key) =>
+                        dispatch({ type: "add_filter_value", key: "ownerIds", value: key })
+                      }
+                    />
+                  </TabsContent>
+                </Tabs>
+              </div>
+            </div>
+
+            {/* ── Risk row ──────────────────────────────────────────────────── */}
+            <div className="grid gap-4 xl:grid-cols-3">
+              {/* Aging buckets */}
+              <div className="rounded-lg border border-slate-200 bg-white p-4">
+                <h2 className="mb-3 text-sm font-medium text-slate-700">Aging buckets</h2>
+                <div className="space-y-1">
+                  {summary.risk.agingBuckets.map((bucket, i) => {
+                    const dot =
+                      i === 0
+                        ? "bg-slate-400"
+                        : i === 1
+                          ? "bg-amber-400"
+                          : "bg-rose-500";
+                    return (
+                      <button
+                        type="button"
+                        key={bucket.bucket}
+                        className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left hover:bg-slate-50"
+                        onClick={() => {
+                          dispatch({ type: "set_overdue_only", value: true });
+                          dispatch({ type: "set_tab", tab: "documents" });
+                        }}
+                      >
+                        <div className={`h-1.5 w-1.5 shrink-0 rounded-full ${dot}`} />
+                        <span className="flex-1 text-xs text-slate-700">{bucket.label}</span>
+                        <span className="tabular-nums text-[10px] text-slate-400">
+                          {bucket.invoiceCount}
+                        </span>
+                        <span className="tabular-nums text-xs font-medium text-slate-800">
+                          {formatCurrencyMap(bucket.totalsByCurrency)}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
-              <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <h2 className="text-sm font-semibold uppercase tracking-[0.08em] text-slate-600">Top overdue customers</h2>
-                <div className="mt-3 space-y-2">
-                  {summary.risk.topOverdueCustomers.slice(0, 6).map((row) => (
+              {/* Top overdue customers */}
+              <div className="rounded-lg border border-slate-200 bg-white p-4">
+                <h2 className="mb-3 text-sm font-medium text-slate-700">Top overdue customers</h2>
+                <div className="space-y-1">
+                  {summary.risk.topOverdueCustomers.slice(0, 5).map((row) => (
                     <button
                       type="button"
                       key={row.customerKey}
-                      className="w-full rounded-md border border-slate-200 px-3 py-2 text-left hover:bg-slate-50"
+                      className="w-full rounded-md px-2 py-2 text-left hover:bg-slate-50"
                       onClick={() => {
-                        dispatch({ type: "add_filter_value", key: "customerKeys", value: row.customerKey });
+                        dispatch({
+                          type: "add_filter_value",
+                          key: "customerKeys",
+                          value: row.customerKey,
+                        });
                         dispatch({ type: "set_overdue_only", value: true });
                       }}
                     >
-                      <div className="text-sm font-medium text-slate-800">{row.customerLabel}</div>
-                      <div className="mt-1 text-xs text-slate-500">
-                        {row.invoiceCount} invoices · max {row.maxDaysOverdue}d · {formatCurrencyMap(row.totalsByCurrency)}
+                      <div className="flex items-center justify-between">
+                        <span className="truncate text-xs font-medium text-slate-800">
+                          {row.customerLabel}
+                        </span>
+                        <span className="ml-2 shrink-0 tabular-nums text-xs font-medium text-rose-600">
+                          {formatCurrencyMap(row.totalsByCurrency)}
+                        </span>
                       </div>
+                      <p className="mt-0.5 text-[10px] text-slate-400">
+                        {row.invoiceCount} invoices · {row.maxDaysOverdue}d max overdue
+                      </p>
                     </button>
                   ))}
                 </div>
               </div>
 
-              <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <h2 className="text-sm font-semibold uppercase tracking-[0.08em] text-slate-600">Top overdue invoices</h2>
-                <div className="mt-3 space-y-2">
-                  {summary.risk.topOverdueInvoices.slice(0, 6).map((invoice) => (
-                    <div key={invoice.invoiceId} className="rounded-md border border-slate-200 px-3 py-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="text-sm font-medium text-slate-800">{invoice.invoiceNumber}</div>
-                        <Badge className="border-rose-200 bg-rose-100 text-rose-800">{invoice.daysOverdue}d</Badge>
+              {/* Top overdue invoices */}
+              <div className="rounded-lg border border-slate-200 bg-white p-4">
+                <h2 className="mb-3 text-sm font-medium text-slate-700">Top overdue invoices</h2>
+                <div className="space-y-1">
+                  {summary.risk.topOverdueInvoices.slice(0, 5).map((invoice) => (
+                    <div
+                      key={invoice.invoiceId}
+                      className="flex items-start gap-3 rounded-md px-2 py-2"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-medium text-slate-800">
+                            {invoice.invoiceNumber}
+                          </span>
+                          <span className="inline-flex items-center rounded-full bg-rose-50 px-1.5 py-0.5 text-[10px] font-medium text-rose-700">
+                            {invoice.daysOverdue}d
+                          </span>
+                        </div>
+                        <p className="mt-0.5 text-[10px] text-slate-400">{invoice.customerLabel}</p>
                       </div>
-                      <div className="mt-1 text-xs text-slate-500">
-                        {invoice.customerLabel} · {formatCurrencyMap({ [invoice.currency]: invoice.amount })}
-                      </div>
-                      <div className="mt-2">
-                        <Link to={`/invoices/${invoice.invoiceId}`} className="text-xs text-blue-700 hover:underline">
-                          Open invoice
+                      <div className="shrink-0 text-right">
+                        <p className="tabular-nums text-xs font-medium text-slate-700">
+                          {formatCurrencyMap({ [invoice.currency]: invoice.amount })}
+                        </p>
+                        <Link
+                          to={`/invoices/${invoice.invoiceId}`}
+                          className="text-[10px] text-blue-600 hover:underline"
+                        >
+                          Open
                         </Link>
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
-            </section>
+            </div>
 
-            <section className="rounded-xl border border-slate-200 bg-white p-4">
-              <div className="mb-3 flex items-center justify-between gap-2">
-                <h2 className="text-sm font-semibold uppercase tracking-[0.08em] text-slate-600">Detailed table</h2>
-                <div className="flex items-center gap-2 text-xs text-slate-500">
-                  <span>Total {records?.totalCount || 0}</span>
+            {/* ── Detail table ──────────────────────────────────────────────── */}
+            <div className="rounded-lg border border-slate-200 bg-white">
+              <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+                <h2 className="text-sm font-medium text-slate-700">Records</h2>
+                <div className="flex items-center gap-2 text-xs text-slate-400">
+                  <span className="tabular-nums">{records?.totalCount || 0} rows</span>
                   <span>·</span>
-                  <span>{formatCurrencyMap(records?.totalsByCurrency || {})}</span>
+                  <span className="tabular-nums">
+                    {formatCurrencyMap(records?.totalsByCurrency || {})}
+                  </span>
                 </div>
               </div>
 
-              <Tabs
-                value={activeTab}
-                onValueChange={(value) => dispatch({ type: "set_tab", tab: value as typeof activeTab })}
-              >
-                <TabsList>
-                  <TabsTrigger value="documents">Documents</TabsTrigger>
-                  <TabsTrigger value="customers">Customers</TabsTrigger>
-                  <TabsTrigger value="proposals">Proposals</TabsTrigger>
-                  <TabsTrigger value="collections">Collections</TabsTrigger>
-                </TabsList>
+              <div className="p-4">
+                <Tabs
+                  value={activeTab}
+                  onValueChange={(v) =>
+                    dispatch({ type: "set_tab", tab: v as typeof activeTab })
+                  }
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <TabsList className="h-8 bg-slate-100">
+                      <TabsTrigger value="documents" className="h-7 text-xs">Documents</TabsTrigger>
+                      <TabsTrigger value="customers" className="h-7 text-xs">Customers</TabsTrigger>
+                      <TabsTrigger value="proposals" className="h-7 text-xs">Proposals</TabsTrigger>
+                      <TabsTrigger value="collections" className="h-7 text-xs">Collections</TabsTrigger>
+                    </TabsList>
 
-                {(["documents", "customers", "proposals", "collections"] as const).map((tab) => (
-                  <TabsContent key={tab} value={tab} className="mt-4 space-y-3">
-                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                      <div className="space-y-1">
-                        <Label>Sort field</Label>
-                        <Select
-                          value={state.table.sort.field}
-                          onValueChange={(value) =>
-                            dispatch({
-                              type: "set_sort",
-                              sort: {
-                                ...state.table.sort,
-                                field: value,
-                              },
-                            })
-                          }
-                        >
-                          <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {tableColumns.length ? (
-                              tableColumns.map((column) => (
-                                <SelectItem key={column} value={column}>{column}</SelectItem>
-                              ))
-                            ) : (
-                              <SelectItem value="date">date</SelectItem>
-                            )}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-1">
-                        <Label>Sort direction</Label>
-                        <Select
-                          value={state.table.sort.direction}
-                          onValueChange={(value) =>
-                            dispatch({
-                              type: "set_sort",
-                              sort: {
-                                ...state.table.sort,
-                                direction: value as "asc" | "desc",
-                              },
-                            })
-                          }
-                        >
-                          <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="desc">desc</SelectItem>
-                            <SelectItem value="asc">asc</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-1">
-                        <Label>Group by</Label>
-                        <Select
-                          value={state.table.groupBy || "none"}
-                          onValueChange={(value) => dispatch({ type: "set_group_by", groupBy: value === "none" ? null : value })}
-                        >
-                          <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">none</SelectItem>
-                            {tableColumns.map((column) => (
-                              <SelectItem key={`group:${column}`} value={column}>{column}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-1">
-                        <Label>Page size</Label>
-                        <Select
-                          value={String(state.table.pageSize)}
-                          onValueChange={(value) => dispatch({ type: "set_page_size", pageSize: Number(value) })}
-                        >
-                          <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {[25, 50, 100, 200].map((size) => (
-                              <SelectItem key={size} value={String(size)}>{size}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                    <div className="flex items-center gap-1.5">
+                      <Select
+                        value={state.table.sort.field}
+                        onValueChange={(v) =>
+                          dispatch({
+                            type: "set_sort",
+                            sort: { ...state.table.sort, field: v },
+                          })
+                        }
+                      >
+                        <SelectTrigger className="h-7 w-[120px] text-xs">
+                          <SelectValue placeholder="Sort by" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {tableColumns.length ? (
+                            tableColumns.map((col) => (
+                              <SelectItem key={col} value={col}>{col}</SelectItem>
+                            ))
+                          ) : (
+                            <SelectItem value="date">date</SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                      <Select
+                        value={state.table.sort.direction}
+                        onValueChange={(v) =>
+                          dispatch({
+                            type: "set_sort",
+                            sort: { ...state.table.sort, direction: v as "asc" | "desc" },
+                          })
+                        }
+                      >
+                        <SelectTrigger className="h-7 w-[80px] text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="desc">↓ Desc</SelectItem>
+                          <SelectItem value="asc">↑ Asc</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Select
+                        value={String(state.table.pageSize)}
+                        onValueChange={(v) =>
+                          dispatch({ type: "set_page_size", pageSize: Number(v) })
+                        }
+                      >
+                        <SelectTrigger className="h-7 w-[70px] text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[25, 50, 100, 200].map((size) => (
+                            <SelectItem key={size} value={String(size)}>{size}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
-
-                    {records?.groups?.length ? (
-                      <div className="rounded-md border border-slate-200 bg-slate-50 p-2 text-xs text-slate-600">
-                        {records.groups.slice(0, 6).map((group) => (
-                          <span key={group.key} className="mr-3 inline-block">
-                            {group.key}: {group.count} ({formatCurrencyMap(group.totalsByCurrency)})
-                          </span>
-                        ))}
-                      </div>
-                    ) : null}
-
-                    {records?.records?.length ? (
-                      <div className="overflow-x-auto rounded-lg border border-slate-200">
-                        <table className="min-w-full divide-y divide-slate-200 text-sm">
-                          <thead className="bg-slate-50">
-                            <tr>
-                              {tableColumns.map((column) => (
-                                <th key={column} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
-                                  {column}
-                                </th>
-                              ))}
-                              <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">open</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100 bg-white">
-                            {records.records.map((row, index) => {
-                              const recordId = String(row.id || "");
-                              const linkedInvoiceId = String(row.linkedInvoiceId || "");
-                              const customerKey = String(row.customerKey || "");
-
-                              const targetUrl =
-                                tab === "documents" || tab === "collections"
-                                  ? `/invoices/${recordId}`
-                                  : tab === "proposals"
-                                    ? linkedInvoiceId
-                                      ? `/invoices/${linkedInvoiceId}`
-                                      : `/proposals/${recordId}`
-                                    : customerKey
-                                      ? `/contacts/${customerKey}`
-                                      : undefined;
-
-                              return (
-                                <tr key={`${recordId || "row"}-${index}`} className="hover:bg-slate-50/60">
-                                  {tableColumns.map((column) => {
-                                    const value = row[column];
-                                    const isDateColumn = column.toLowerCase().includes("date") || column.toLowerCase().includes("at");
-                                    const isStatusColumn = column === "status";
-                                    const display =
-                                      value === null || value === undefined || value === ""
-                                        ? "-"
-                                        : isDateColumn && typeof value === "string"
-                                          ? formatDateShort(new Date(value))
-                                          : String(value);
-
-                                    return (
-                                      <td key={`${recordId}-${column}`} className="whitespace-nowrap px-3 py-2 text-slate-700">
-                                        {isStatusColumn && typeof value === "string" ? (
-                                          <span className={`inline-flex rounded border px-2 py-0.5 text-xs ${statusTone(value)}`}>{value}</span>
-                                        ) : (
-                                          display
-                                        )}
-                                      </td>
-                                    );
-                                  })}
-                                  <td className="px-3 py-2 text-slate-700">
-                                    {targetUrl ? (
-                                      <Link to={targetUrl} className="text-xs text-blue-700 hover:underline">
-                                        Open
-                                      </Link>
-                                    ) : (
-                                      "-"
-                                    )}
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    ) : (
-                      <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm text-slate-600">
-                        No records match the current filter set.
-                      </div>
-                    )}
-
-                    <div className="flex items-center justify-between text-xs text-slate-600">
-                      <div>
-                        Page {records?.page || 1} / {totalPages}
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={(records?.page || 1) <= 1}
-                          onClick={() => dispatch({ type: "set_page", page: Math.max(1, (records?.page || 1) - 1) })}
-                        >
-                          Previous
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={(records?.page || 1) >= totalPages}
-                          onClick={() => dispatch({ type: "set_page", page: (records?.page || 1) + 1 })}
-                        >
-                          Next
-                        </Button>
-                      </div>
-                    </div>
-                  </TabsContent>
-                ))}
-              </Tabs>
-            </section>
-
-            <section className="rounded-xl border border-slate-200 bg-white p-4">
-              <h2 className="text-sm font-semibold uppercase tracking-[0.08em] text-slate-600">Data trust</h2>
-              <div className="mt-3 grid gap-3 lg:grid-cols-2">
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
-                  <div className="font-semibold text-slate-800">Coverage</div>
-                  <div className="mt-1">Owner derivation: {summary.trust.ownerDerivationCoveragePct.toFixed(1)}%</div>
-                  <div>Market derivation: {summary.trust.marketDerivationCoveragePct.toFixed(1)}%</div>
-                </div>
-                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
-                  <div className="font-semibold text-slate-800">Metric definitions</div>
-                  <div className="mt-1">Each KPI includes inclusion/exclusion scope, formula, time basis, currency basis, and last update timestamp.</div>
-                </div>
-              </div>
-
-              <div className="mt-3 grid gap-3 lg:grid-cols-2">
-                {Object.entries(summary.trust.metricDefinitions).map(([metric, definition]) => (
-                  <div key={metric} className="rounded-lg border border-slate-200 p-3 text-xs text-slate-700">
-                    <div className="font-semibold text-slate-800">{metric}</div>
-                    <div className="mt-1"><span className="font-medium">Includes:</span> {definition.includes}</div>
-                    <div className="mt-1"><span className="font-medium">Excludes:</span> {definition.excludes}</div>
-                    <div className="mt-1"><span className="font-medium">Formula:</span> {definition.formula}</div>
-                    <div className="mt-1"><span className="font-medium">Time basis:</span> {definition.timeBasis}</div>
-                    <div className="mt-1"><span className="font-medium">Currency basis:</span> {definition.currencyBasis}</div>
                   </div>
-                ))}
-              </div>
 
-              {summary.trust.caveats.length > 0 ? (
-                <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-                  <div className="mb-2 flex items-center gap-2 font-semibold">
-                    <TriangleAlert className="h-4 w-4" />
-                    Caveats
-                  </div>
-                  <ul className="list-disc space-y-1 pl-4">
-                    {summary.trust.caveats.map((caveat, index) => (
-                      <li key={`${caveat}-${index}`}>{caveat}</li>
-                    ))}
-                  </ul>
+                  {(["documents", "customers", "proposals", "collections"] as const).map((tab) => (
+                    <TabsContent key={tab} value={tab} className="mt-4">
+                      {records?.groups?.length ? (
+                        <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1 rounded-md border border-slate-100 bg-slate-50 px-3 py-2">
+                          {records.groups.slice(0, 6).map((group) => (
+                            <span key={group.key} className="text-xs text-slate-600">
+                              <span className="font-medium">{group.key}</span>
+                              {" — "}
+                              {group.count}
+                              {" ("}
+                              {formatCurrencyMap(group.totalsByCurrency)}
+                              {")"}
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
+
+                      {records?.records?.length ? (
+                        <div className="overflow-x-auto rounded-md border border-slate-200">
+                          <table className="min-w-full divide-y divide-slate-100 text-xs">
+                            <thead className="bg-slate-50">
+                              <tr>
+                                {tableColumns.map((col) => (
+                                  <th
+                                    key={col}
+                                    className="whitespace-nowrap px-3 py-2 text-left font-medium text-slate-500"
+                                  >
+                                    {col}
+                                  </th>
+                                ))}
+                                <th className="px-3 py-2" />
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50 bg-white">
+                              {records.records.map((row, index) => {
+                                const recordId = String(row.id || "");
+                                const linkedInvoiceId = String(row.linkedInvoiceId || "");
+                                const customerKey = String(row.customerKey || "");
+                                const targetUrl =
+                                  tab === "documents" || tab === "collections"
+                                    ? `/invoices/${recordId}`
+                                    : tab === "proposals"
+                                      ? linkedInvoiceId
+                                        ? `/invoices/${linkedInvoiceId}`
+                                        : `/proposals/${recordId}`
+                                      : customerKey
+                                        ? `/contacts/${customerKey}`
+                                        : undefined;
+
+                                return (
+                                  <tr
+                                    key={`${recordId || "row"}-${index}`}
+                                    className="hover:bg-slate-50/60"
+                                  >
+                                    {tableColumns.map((col) => {
+                                      const value = row[col];
+                                      const isDate =
+                                        col.toLowerCase().includes("date") ||
+                                        col.toLowerCase().includes("at");
+                                      const isStatus = col === "status";
+                                      const display =
+                                        value === null || value === undefined || value === ""
+                                          ? "—"
+                                          : isDate && typeof value === "string"
+                                            ? formatDateShort(new Date(value))
+                                            : String(value);
+
+                                      return (
+                                        <td
+                                          key={`${recordId}-${col}`}
+                                          className="whitespace-nowrap px-3 py-2 text-slate-700"
+                                        >
+                                          {isStatus && typeof value === "string" ? (
+                                            <span
+                                              className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[10px] ${statusTone(value)}`}
+                                            >
+                                              {value}
+                                            </span>
+                                          ) : (
+                                            display
+                                          )}
+                                        </td>
+                                      );
+                                    })}
+                                    <td className="px-3 py-2 text-right">
+                                      {targetUrl ? (
+                                        <Link
+                                          to={targetUrl}
+                                          className="text-blue-600 hover:underline"
+                                        >
+                                          Open
+                                        </Link>
+                                      ) : (
+                                        "—"
+                                      )}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <div className="rounded-md border border-dashed border-slate-200 bg-slate-50 py-10 text-center text-xs text-slate-400">
+                          No records match the current filter set.
+                        </div>
+                      )}
+
+                      <div className="mt-3 flex items-center justify-between">
+                        <span className="text-xs text-slate-400">
+                          Page {records?.page || 1} of {totalPages}
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-xs"
+                            disabled={(records?.page || 1) <= 1}
+                            onClick={() =>
+                              dispatch({
+                                type: "set_page",
+                                page: Math.max(1, (records?.page || 1) - 1),
+                              })
+                            }
+                          >
+                            Prev
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-xs"
+                            disabled={(records?.page || 1) >= totalPages}
+                            onClick={() =>
+                              dispatch({ type: "set_page", page: (records?.page || 1) + 1 })
+                            }
+                          >
+                            Next
+                          </Button>
+                        </div>
+                      </div>
+                    </TabsContent>
+                  ))}
+                </Tabs>
+              </div>
+            </div>
+
+            {/* ── Notices ───────────────────────────────────────────────────── */}
+            {hasLowData && (
+              <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-xs text-blue-800">
+                Low-data mode: totals are shown, but advanced ratios may be unreliable until
+                more records are captured for this period.
+              </div>
+            )}
+
+            {summary.trust.caveats.length > 0 && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+                <div className="flex items-center gap-2 text-xs font-medium text-amber-800">
+                  <TriangleAlert className="h-3.5 w-3.5" />
+                  {summary.trust.caveats.length} data caveat
+                  {summary.trust.caveats.length !== 1 ? "s" : ""}
                 </div>
-              ) : null}
-            </section>
+                <ul className="mt-2 list-disc space-y-0.5 pl-5 text-xs text-amber-700">
+                  {summary.trust.caveats.map((caveat, i) => (
+                    <li key={`${caveat}-${i}`}>{caveat}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </>
         )}
-
-        {!isLoading && summary && records && records.totalCount === 0 ? (
-          <section className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
-            <BarChart3 className="mx-auto h-10 w-10 text-slate-400" />
-            <h2 className="mt-3 text-lg font-semibold text-slate-900">No analytics data yet</h2>
-            <p className="mt-2 text-sm text-slate-600">
-              As proposals, invoices, and payment statuses start flowing, this page will surface KPI trends, receivables risk, and operational priorities.
-            </p>
-            <p className="mt-2 text-xs text-slate-500">
-              Suggested first actions: create a proposal, issue invoices, and update payment statuses to unlock collection metrics.
-            </p>
-          </section>
-        ) : null}
-
-        {!isLoading && summary && hasLowData ? (
-          <section className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
-            Low-data mode: totals are shown, while advanced ratios may be unstable until more records are captured for this period.
-          </section>
-        ) : null}
       </div>
     </div>
   );
