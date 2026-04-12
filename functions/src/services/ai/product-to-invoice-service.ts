@@ -219,7 +219,7 @@ MAPPING RULES:
 2. Consider field names, labels, and semantic meaning (e.g., "price" → product.price, "description" → product.description)
 3. For table items (items[*].*), create appropriate line items from product data
 4. Map product price to appropriate price/amount fields
-5. Map product currency to currency fields
+5. Map product currency only to top-level invoice currency fields
 6. Map product description to description fields
 7. Map product SKU to SKU/reference fields
 8. Map product name to item name/description fields
@@ -230,7 +230,7 @@ MAPPING RULES:
 COMMON MAPPINGS:
 - Product name → items[*].description, items[*].name, itemDescription
 - Product price → items[*].unitPrice, items[*].price, price, amount
-- Product currency → items[*].currency, currency
+- Product currency → currency
 - Product description → items[*].description, description
 - Product SKU → items[*].sku, sku, reference, itemNumber
 - Product category → category, itemCategory
@@ -242,7 +242,6 @@ Example:
   "mappedFields": {
     "items[0].description": "Premium Widget",
     "items[0].unitPrice": 99.99,
-    "items[0].currency": "USD",
     "items[0].quantity": 1,
     "currency": "USD"
   }
@@ -256,4 +255,3 @@ IMPORTANT:
 - ALWAYS overwrite existing form data with product data when product data is available and relevant`;
   }
 }
-

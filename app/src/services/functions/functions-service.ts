@@ -95,7 +95,19 @@ export const functionsService: FunctionsService = {
   },
 
   async sendInvoiceEmail(payload) {
-    const result = await httpsCallable<typeof payload, { sent: boolean }>(
+    const result = await httpsCallable<
+      typeof payload,
+      {
+        sent: boolean;
+        paymentDelivery: {
+          status: "payable_online" | "payable_fallback" | "paid" | "cancelled";
+          hasOnlineLink: boolean;
+          warnings: string[];
+          reference: string;
+          usedFallback: boolean;
+        };
+      }
+    >(
       firebase.functions,
       "sendInvoiceEmail",
     )(payload);
@@ -112,6 +124,12 @@ export const functionsService: FunctionsService = {
         text: string;
         toEmail: string;
         expiresAt: string;
+        paymentDelivery: {
+          status: "payable_online" | "payable_fallback" | "paid" | "cancelled";
+          hasOnlineLink: boolean;
+          warnings: string[];
+          reference: string;
+        };
       }
     >(firebase.functions, "previewInvoiceEmail")(payload);
     return result.data;

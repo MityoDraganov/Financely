@@ -24,6 +24,11 @@ import { SlackExecutor } from "../executors/slack-executor";
 import { PdfExecutor } from "../executors/pdf-executor";
 import { ProductExecutor } from "../executors/product-executor";
 import { StripeExecutor } from "../executors/stripe-executor";
+import {
+  getOrganizationBaseCurrency,
+  getOrganizationCurrencyRateOverrides,
+  toManualCurrencyPairs,
+} from "../utils/organization-currency-policy";
 
 const geminiApiKey = defineSecret("GEMINI_API_KEY");
 const resendApiKey = defineSecret("RESEND_API_KEY");
@@ -229,12 +234,16 @@ export const onLeadCreated = onDocumentCreated(
 
       // Generate proposal suggestion
       const proposalGenerationService = getProposalGenerationService();
+      const organizationBaseCurrency = getOrganizationBaseCurrency(organization);
+      const conversionPairs = toManualCurrencyPairs(
+        getOrganizationCurrencyRateOverrides(organization),
+      );
       const productsForContext = products.map((p) => ({
         id: p.id,
         name: p.name,
         description: p.description,
         price: p.price,
-        currency: p.currency,
+        currency: organizationBaseCurrency,
         category: p.category,
       }));
       const proposalData = await proposalGenerationService.generateProposalSuggestion(
@@ -242,8 +251,9 @@ export const onLeadCreated = onDocumentCreated(
         organization.name,
         productsForContext,
         {
-          targetCurrency: organization.settings?.defaultCurrency || "USD",
-          conversionPairs: organization.settings?.multiCurrency?.pairs || [],
+          targetCurrency: organizationBaseCurrency,
+          organizationBaseCurrency,
+          conversionPairs,
         },
       );
 

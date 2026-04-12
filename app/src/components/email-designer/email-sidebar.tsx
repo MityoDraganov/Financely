@@ -31,6 +31,7 @@ import {
 	Table,
 	Database,
 	CornerDownRight,
+	CreditCard,
 } from "lucide-react";
 import { EmailTemplate, EmailTemplateBlock, EmailSection } from "@/core";
 import { Input } from "@/components/ui/input";
@@ -75,6 +76,7 @@ const getBlocksForSection = (section: EmailSection): { type: BlockType; icon: Re
 		{ type: "spacer" as const, icon: ScanLine, label: "Spacer", sections: ["header", "body", "footer"] as EmailSection[] },
 		{ type: "image" as const, icon: ImageIcon, label: "Image", sections: ["header", "body", "footer"] as EmailSection[] },
 		{ type: "table" as const, icon: Table, label: "Table", sections: ["header", "body", "footer"] as EmailSection[] },
+		{ type: "paymentInstructions" as const, icon: CreditCard, label: "Payment Instructions", sections: ["body"] as EmailSection[] },
 		{ type: "rawHtml" as const, icon: Code2, label: "Custom HTML", sections: ["header", "body", "footer"] as EmailSection[] },
 		{ type: "footerText" as const, icon: AlignLeft, label: "Footer Text", sections: ["footer"] as EmailSection[] },
 		{ type: "socialLinks" as const, icon: Share2, label: "Social Links", sections: ["footer"] as EmailSection[] },
@@ -122,6 +124,8 @@ const getBlockIcon = (type: EmailTemplateBlock["type"]) => {
 			return Container;
 		case "table":
 			return Table;
+		case "paymentInstructions":
+			return CreditCard;
 		default:
 			return Text;
 	}
@@ -178,6 +182,9 @@ const extractDynamicKeysFromBlock = (block: EmailTemplateBlock): string[] => {
 			case "navigation":
 				target.links?.forEach((link) => pushKeys([link.label, link.url]));
 				break;
+			case "paymentInstructions":
+				pushKeys([target.ctaLabel]);
+				break;
 			case "unsubscribe":
 				pushKeys([target.text, target.url]);
 				break;
@@ -231,6 +238,9 @@ const getBlockLabel = (block: EmailTemplateBlock, t: (key: string) => string): s
 		return socialBlock.links && socialBlock.links.length > 0
 			? `${socialBlock.links.length} ${t("emailDesigner.blocks.socialLinks")}`
 			: t("emailDesigner.blocks.socialLinks");
+	}
+	if (block.type === "paymentInstructions") {
+		return t("emailDesigner.blocks.paymentInstructions");
 	}
 	if (block.type === "unsubscribe") {
 		const unsubscribeBlock = block as Extract<EmailTemplateBlock, { type: "unsubscribe" }>;

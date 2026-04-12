@@ -3,7 +3,12 @@ import { loggerService } from "../services/logger-service";
 import { getDatabaseService } from "../services/database-service";
 import { getLeadRepository } from "../repositories/lead-repository";
 import { getOpportunityRepository } from "../repositories/opportunity-repository";
+import { getOrganizationRepository } from "../repositories/organization-repository";
 import { verifyAuthAndOrgMembership } from "../utils/auth-utils";
+import {
+  getOrganizationBaseCurrency,
+  normalizeCurrencyCode,
+} from "../utils/organization-currency-policy";
 
 interface ConvertLeadToOpportunityInput {
   leadId: string;
@@ -45,6 +50,7 @@ export const convertLeadToOpportunity = onCall<
     const databaseService = getDatabaseService();
     const leadRepository = getLeadRepository(databaseService);
     const opportunityRepository = getOpportunityRepository(databaseService);
+    const organizationRepository = getOrganizationRepository(databaseService);
 
     const lead = await leadRepository.get({ id: leadId });
     if (!lead) {
@@ -54,6 +60,15 @@ export const convertLeadToOpportunity = onCall<
     if (leadData.organizationId !== organizationId) {
       throw new HttpsError("permission-denied", "Lead does not belong to this organization");
     }
+    const organization = await organizationRepository.get({ id: organizationId });
+    if (!organization) {
+      throw new HttpsError("not-found", "Organization not found");
+    }
+    const organizationBaseCurrency = getOrganizationBaseCurrency(organization);
+    const resolvedOpportunityCurrency =
+      normalizeCurrencyCode(currency) ||
+      normalizeCurrencyCode(leadData.budgetCurrency) ||
+      organizationBaseCurrency;
 
     loggerService.info("Converting lead to opportunity", { leadId, organizationId });
 
@@ -65,7 +80,7 @@ export const convertLeadToOpportunity = onCall<
         title,
         stage: "prospecting",
         estimatedValue,
-        currency: currency ?? leadData.budgetCurrency,
+        currency: resolvedOpportunityCurrency,
         expectedCloseDate,
         proposalIds: [],
         tags: leadData.tags ?? [],

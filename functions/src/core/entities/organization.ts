@@ -122,6 +122,32 @@ export const organizationDataSchema = z.object({
       // Invoice numbering
       invoicePrefix: z.string().default("INV"),
       invoiceNumberStart: z.number().int().min(1).default(1),
+      paymentFallback: z
+        .object({
+          referenceFormat: z.string().default("{{invoiceNumber}}"),
+          bankInstructions: z
+            .string()
+            .default(
+              "Online payment is unavailable. Use bank transfer and include the payment reference.",
+            ),
+          bankAccountName: z.string().default(""),
+          bankAccountNumber: z.string().default(""),
+          iban: z.string().default(""),
+          swift: z.string().default(""),
+          beneficiaryName: z.string().default(""),
+          beneficiaryAddress: z.string().default(""),
+        })
+        .default({
+          referenceFormat: "{{invoiceNumber}}",
+          bankInstructions:
+            "Online payment is unavailable. Use bank transfer and include the payment reference.",
+          bankAccountName: "",
+          bankAccountNumber: "",
+          iban: "",
+          swift: "",
+          beneficiaryName: "",
+          beneficiaryAddress: "",
+        }),
       
       // Features and permissions
       features: z
@@ -435,6 +461,22 @@ export const organizationDataSchema = z.object({
             .optional(),
         })
         .optional(),
+      currencyRates: z
+        .object({
+          overrides: z
+            .array(
+              z.object({
+                from: z.string().min(1),
+                to: z.string().min(1),
+                rate: z.number().positive(),
+                updatedAt: z.string().optional(),
+              }),
+            )
+            .default([]),
+        })
+        .default({
+          overrides: [],
+        }),
       multiCurrency: z
         .object({
           enabled: z.boolean().default(false),
@@ -468,6 +510,17 @@ export const organizationDataSchema = z.object({
       defaultTimezone: "UTC",
       invoicePrefix: "INV",
       invoiceNumberStart: 1,
+      paymentFallback: {
+        referenceFormat: "{{invoiceNumber}}",
+        bankInstructions:
+          "Online payment is unavailable. Use bank transfer and include the payment reference.",
+        bankAccountName: "",
+        bankAccountNumber: "",
+        iban: "",
+        swift: "",
+        beneficiaryName: "",
+        beneficiaryAddress: "",
+      },
       features: {
         customTemplates: true,
         pdfGeneration: true,
@@ -493,6 +546,9 @@ export const organizationDataSchema = z.object({
             model: "auto",
           },
         },
+      },
+      currencyRates: {
+        overrides: [],
       },
       multiCurrency: {
         enabled: false,

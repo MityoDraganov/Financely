@@ -188,6 +188,46 @@ export function generateInvoiceHTML(
     return trimmed;
   }
 
+  function normalizeQrColor(color: string | undefined, fallback: string): string {
+    if (!color) return fallback;
+    const trimmed = color.trim().replace(/^#/, "");
+    if (!trimmed) return fallback;
+    return trimmed;
+  }
+
+  function buildQrCodeImageUrl(
+    value: string,
+    options?: {
+      size?: number;
+      foregroundColor?: string;
+      backgroundColor?: string;
+      errorCorrection?: "low" | "medium" | "high" | "ultra";
+    },
+  ): string {
+    const size = options?.size ?? 256;
+    const ecc =
+      options?.errorCorrection === "low"
+        ? "L"
+        : options?.errorCorrection === "high"
+          ? "Q"
+          : options?.errorCorrection === "ultra"
+            ? "H"
+            : "M";
+    const qzone = "0";
+    const fgColor = normalizeQrColor(options?.foregroundColor, "111827");
+    const bgColor = normalizeQrColor(options?.backgroundColor, "ffffff");
+
+    const url = new URL("https://api.qrserver.com/v1/create-qr-code/");
+    url.searchParams.set("size", `${size}x${size}`);
+    url.searchParams.set("ecc", ecc);
+    url.searchParams.set("format", "png");
+    url.searchParams.set("qzone", qzone);
+    url.searchParams.set("color", fgColor);
+    url.searchParams.set("bgcolor", bgColor);
+    url.searchParams.set("data", value);
+    return url.toString();
+  }
+
   function resolveLogoFromContext(): string {
     const candidates: unknown[] = [
       organizationLogoUrl,
@@ -561,9 +601,22 @@ export function generateInvoiceHTML(
       if (el.type === "qrCode") {
         const qr = el as Extract<TemplateElement, { type: "qrCode" }>;
         const value = qr.binding ? getValueFromContextOrData(qr.binding, dataContext, invoice.data) : qr.content;
+        const qrValue = String(value ?? "").trim();
+        const qrUrl = qrValue
+          ? buildQrCodeImageUrl(qrValue, {
+              size: Math.max(96, Math.min(512, Math.round(Math.max(el.width, el.height)))),
+              foregroundColor: qr.foregroundColor,
+              backgroundColor: qr.backgroundColor,
+              errorCorrection: qr.errorCorrection,
+            })
+          : null;
         return `
           <div style="${commonStyle}; background: ${qr.backgroundColor}; color: ${qr.foregroundColor}; border: 1px solid #d1d5db; display: grid; place-items: center; font-size: 10px; font-weight: 700;" title="${String(value ?? "")}">
-            QR
+            ${
+              qrUrl
+                ? `<img src="${qrUrl}" alt="QR code" style="width:100%;height:100%;object-fit:contain;" />`
+                : "QR"
+            }
           </div>
         `;
       }

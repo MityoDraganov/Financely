@@ -155,11 +155,16 @@ function formatPrice(price: number, currency: string, locale?: string): string {
 
 function buildConvertedPrices(
   price: number,
-  productCurrency: string,
+  organizationBaseCurrency: string,
   multiCurrency: PublicMultiCurrencyConfig,
 ): Array<{ currency: string; price: number }> {
   return multiCurrency.pairs
-    .filter((pair) => pair.from === productCurrency && pair.to !== productCurrency && pair.rate > 0)
+    .filter(
+      (pair) =>
+        pair.from === organizationBaseCurrency &&
+        pair.to !== organizationBaseCurrency &&
+        pair.rate > 0,
+    )
     .map((pair) => ({ currency: pair.to, price: price * pair.rate }));
 }
 
@@ -173,6 +178,7 @@ function buildConvertedPrices(
 function PriceDisplay({
   price,
   productCurrency,
+  organizationBaseCurrency,
   multiCurrency,
   locale,
   priceClassName,
@@ -181,6 +187,7 @@ function PriceDisplay({
 }: {
   price: number;
   productCurrency: string;
+  organizationBaseCurrency: string;
   multiCurrency?: PublicMultiCurrencyConfig;
   locale?: string;
   /** Tailwind classes applied to every price amount (base + conversions). */
@@ -189,7 +196,7 @@ function PriceDisplay({
   taxLabel?: string;
 }) {
   const conversions = multiCurrency
-    ? buildConvertedPrices(price, productCurrency, multiCurrency)
+    ? buildConvertedPrices(price, organizationBaseCurrency, multiCurrency)
     : [];
 
   return (
@@ -484,6 +491,7 @@ export function PublicCatalogListingView({ data, transitioning = false }: { data
                       <PriceDisplay
                         price={product.price}
                         productCurrency={product.currency}
+                        organizationBaseCurrency={data.organization.baseCurrency}
                         multiCurrency={multiCurrency}
                         locale={data.organization.locale}
                         priceClassName="text-sm font-medium text-stone-800"
@@ -819,6 +827,7 @@ export function PublicProductDetailView({ data }: { data: PublicCatalogProductDe
                 <PriceDisplay
                   price={fields.price}
                   productCurrency={fields.currency}
+                  organizationBaseCurrency={data.organization.baseCurrency}
                   multiCurrency={data.organization.multiCurrency}
                   locale={data.organization.locale}
                   priceClassName="text-3xl text-stone-900"

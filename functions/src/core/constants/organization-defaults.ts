@@ -16,6 +16,16 @@ export const DEFAULT_ORGANIZATION_SETTINGS = {
   defaultTimezone: "UTC",
   invoicePrefix: "INV",
   invoiceNumberStart: 1,
+  paymentFallback: {
+    referenceFormat: "{{invoiceNumber}}",
+    bankInstructions: "Online payment is unavailable. Use bank transfer and include the payment reference.",
+    bankAccountName: "",
+    bankAccountNumber: "",
+    iban: "",
+    swift: "",
+    beneficiaryName: "",
+    beneficiaryAddress: "",
+  },
   features: {
     customTemplates: true,
     pdfGeneration: true,
@@ -41,6 +51,9 @@ export const DEFAULT_ORGANIZATION_SETTINGS = {
         model: "auto",
       },
     },
+  },
+  currencyRates: {
+    overrides: [],
   },
   multiCurrency: {
     enabled: false,

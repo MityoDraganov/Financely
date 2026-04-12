@@ -68,6 +68,28 @@ function roundCurrency(value: InvoiceDataValue): InvoiceDataValue {
 	return value;
 }
 
+function stripLineItemCurrencies(data: Record<string, InvoiceDataValue>): Record<string, InvoiceDataValue> {
+	const next: Record<string, InvoiceDataValue> = { ...data };
+	const lineItemKeys = ["items", "lineItems", "invoiceItems"];
+
+	for (const key of lineItemKeys) {
+		const value = next[key];
+		if (!Array.isArray(value)) continue;
+		next[key] = value.map((entry) => {
+			if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+				return entry as Record<string, InvoiceDataValue>;
+			}
+			const row = {
+				...(entry as Record<string, InvoiceDataValue>),
+			};
+			delete row.currency;
+			return row;
+		});
+	}
+
+	return next;
+}
+
 export default function CreateInvoicePage() {
 	const navigate = useNavigate();
 	const createInvoice = useCreateInvoice();
@@ -868,12 +890,12 @@ export default function CreateInvoicePage() {
 
 		setSubmitError(null);
 
-		try {
-			// Store default currency in invoice data
-			const invoiceDataWithRates = {
-			...formData,
-			_defaultCurrency: defaultCurrency,
-		};
+			try {
+				// Store default currency in invoice data
+				const invoiceDataWithRates = {
+					...stripLineItemCurrencies(formData),
+					_defaultCurrency: defaultCurrency,
+				};
 
 			// Collect product IDs from all rows for quantity deduction
 			// Match product IDs to items by row index to ensure correct order

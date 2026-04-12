@@ -22,7 +22,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { CreateProductInput, Product, CreateProductMetafieldDefinitionInput, UpdateProductMetafieldDefinitionInput } from "@/core";
-import { CURRENCIES } from "@/utils/currencies";
 import { slugifyPublicSegment } from "@/utils/slug";
 import { useFileUpload } from "@/hooks/use-file-upload";
 import { useProductMetafieldDefinitions, useProductMetafields, useCreateProductMetafield, useUpdateProductMetafield, useDeleteProductMetafield } from "@/hooks/repository-hooks/use-product-metafields";
@@ -31,6 +30,7 @@ import { useCreateProduct, useProductsByOrg } from "@/hooks";
 import { MetafieldInput } from "@/components/metafields/metafield-input";
 import { MetafieldDefinitionForm } from "@/components/metafields/metafield-definition-form";
 import { toast } from "sonner";
+import { useCurrentOrganization } from "@/hooks/use-current-organization";
 
 interface PendingImage {
   id: string;
@@ -121,6 +121,13 @@ export function ProductForm({
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
   const [isCategoryPickerOpen, setIsCategoryPickerOpen] = useState(false);
   const [categorySearch, setCategorySearch] = useState("");
+  const { data: currentOrganization } = useCurrentOrganization();
+  const organizationBaseCurrency = useMemo(() => {
+    if (currentOrganization?.id === organizationId) {
+      return currentOrganization.settings?.defaultCurrency || "USD";
+    }
+    return initialData?.currency || "USD";
+  }, [currentOrganization?.id, currentOrganization?.settings?.defaultCurrency, organizationId, initialData?.currency]);
 
   const [formData, setFormData] = useState<Partial<CreateProductInput>>(
     () => buildInitialFormData(initialData),
@@ -167,6 +174,13 @@ export function ProductForm({
     setCategorySearch("");
     setIsCategoryPickerOpen(false);
   }, [isEditMode, initialData?.id]);
+
+  useEffect(() => {
+    setFormData((prev) => ({
+      ...prev,
+      currency: organizationBaseCurrency,
+    }));
+  }, [organizationBaseCurrency]);
 
   const { categoryMetafields, productMetafields } = useMemo(() => {
     const productCategory = normalizeCategoryValue(formData.category || "");
@@ -388,7 +402,7 @@ export function ProductForm({
       const updateData: Partial<CreateProductInput> = {
         name: formData.name!,
         price: formData.price!,
-        currency: formData.currency || "USD",
+        currency: organizationBaseCurrency,
         trackInventory: formData.trackInventory,
         status: formData.status || "active",
         images: formData.images || [],
@@ -421,7 +435,7 @@ export function ProductForm({
         name: formData.name!,
         description: formData.description,
         price: formData.price!,
-        currency: formData.currency || "USD",
+        currency: organizationBaseCurrency,
         sku: formData.sku,
         trackInventory: formData.trackInventory ?? false,
         category: normalizedCategory,
@@ -593,21 +607,13 @@ export function ProductForm({
               </div>
               <div className="space-y-2">
                 <Label htmlFor="currency">{t('products.form.currency')}</Label>
-                <Select
-                  value={formData.currency}
-                  onValueChange={(value) => setFormData((prev) => ({ ...prev, currency: value }))}
-                >
-                  <SelectTrigger className="h-11 sm:h-10 text-base sm:text-sm">
-                    <SelectValue placeholder={t('products.form.currencyPlaceholder')} />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-[300px]">
-                    {CURRENCIES.map((currency) => (
-                      <SelectItem key={currency.code} value={currency.code}>
-                        {currency.code} - {currency.name} {currency.symbol ? `(${currency.symbol})` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Input
+                  id="currency"
+                  value={organizationBaseCurrency}
+                  disabled
+                  readOnly
+                  className="h-11 sm:h-10 text-base sm:text-sm bg-muted"
+                />
               </div>
             </div>
 

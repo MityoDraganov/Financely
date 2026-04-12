@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
 	Select,
 	SelectContent,
@@ -21,7 +22,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { ChevronLeft, Menu, Settings, Eye, Loader2, Mail } from "lucide-react";
+import { ChevronLeft, Menu, Settings, Eye, Loader2, Mail, AlertCircle, CreditCard } from "lucide-react";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import {
 	EmailTemplate,
@@ -365,6 +366,17 @@ export default function EmailDesignerPage() {
 					blocks: (containerBlock.blocks || []).map((nested) =>
 						normalizeBlockSections(nested as EmailTemplateBlock, blockSection)
 					),
+				} as EmailTemplateBlock;
+			}
+
+			if (typedBlock.type === "paymentInstructions") {
+				const paymentBlock = sourceBlock as Extract<
+					EmailTemplateBlock,
+					{ type: "paymentInstructions" }
+				>;
+				return {
+					...paymentBlock,
+					section: "body",
 				} as EmailTemplateBlock;
 			}
 
@@ -972,6 +984,10 @@ export default function EmailDesignerPage() {
 				extractFromText(unsubscribeBlock.text || "");
 				extractFromText(unsubscribeBlock.url || "");
 			}
+			if (block.type === "paymentInstructions") {
+				const paymentBlock = block as Extract<EmailTemplateBlock, { type: "paymentInstructions" }>;
+				extractFromText(paymentBlock.ctaLabel || "");
+			}
 			if (block.type === "navigation") {
 				const navBlock = block as Extract<EmailTemplateBlock, { type: "navigation" }>;
 				navBlock.links?.forEach(link => {
@@ -1028,6 +1044,10 @@ export default function EmailDesignerPage() {
 				checkText(unsubscribeBlock.text || "", "unsubscribe text");
 				checkText(unsubscribeBlock.url || "", "unsubscribe URL");
 			}
+			if (block.type === "paymentInstructions") {
+				const paymentBlock = block as Extract<EmailTemplateBlock, { type: "paymentInstructions" }>;
+				checkText(paymentBlock.ctaLabel || "", "payment instructions CTA label");
+			}
 			if (block.type === "navigation") {
 				const navBlock = block as Extract<EmailTemplateBlock, { type: "navigation" }>;
 				navBlock.links?.forEach((link, index) => {
@@ -1064,6 +1084,22 @@ export default function EmailDesignerPage() {
 			setMobilePanelOpen(true);
 		}
 	};
+
+	const handleInsertSmartPaymentInstructions = useCallback(() => {
+		if (!draftTemplate) return;
+		if ((draftTemplate.blocks ?? []).some((block) => block.type === "paymentInstructions")) {
+			return;
+		}
+		const newBlock = createBlock("paymentInstructions", "body");
+		handleDraftChange({ blocks: [...draftTemplate.blocks, newBlock] });
+		handleSelectBlock(newBlock.id);
+		toast.success(
+			t(
+				"emailDesigner.paymentInstructions.inserted",
+				"Smart Payment Instructions inserted.",
+			),
+		);
+	}, [draftTemplate, handleDraftChange, handleSelectBlock, t]);
 
 
 	const handleOpenImagePicker = (blockId: string) => {
@@ -1450,6 +1486,18 @@ export default function EmailDesignerPage() {
 			);
 		});
 	}, [dynamicSources, placeholders, templateAllowedContexts]);
+	const isInvoiceSendCompatible = useMemo(() => {
+		const contexts = getCompatibleTemplateContexts({
+			allowedContexts: templateAllowedContexts,
+			placeholders,
+		});
+		return contexts.includes("invoice_send");
+	}, [placeholders, templateAllowedContexts]);
+	const hasSmartPaymentInstructionsBlock = useMemo(
+		() => (draftTemplate?.blocks ?? []).some((block) => block.type === "paymentInstructions"),
+		[draftTemplate?.blocks],
+	);
+	const shouldShowSmartPaymentWarning = isInvoiceSendCompatible && !hasSmartPaymentInstructionsBlock;
 	const draftBlocks = draftTemplate?.blocks;
 	const draftSubject = draftTemplate?.subject;
 	const draftPreheader = draftTemplate?.preheader;
@@ -1894,6 +1942,40 @@ export default function EmailDesignerPage() {
 
 	const propertiesContent = (
 		<div className="h-full min-h-0 min-w-0 flex flex-col overflow-hidden bg-background">
+			{shouldShowSmartPaymentWarning && (
+				<div className="p-3 border-b shrink-0">
+					<Alert className="border-blue-200 bg-blue-50 text-blue-900">
+						<AlertCircle className="h-4 w-4 text-blue-600" />
+						<AlertTitle>
+							{t(
+								"emailDesigner.paymentInstructions.warningTitle",
+								"Smart Payment Instructions missing",
+							)}
+						</AlertTitle>
+						<AlertDescription className="mt-2 space-y-2">
+							<p>
+								{t(
+									"emailDesigner.paymentInstructions.warningDescription",
+									"Invoice emails should include Smart Payment Instructions so recipients always get the correct payment path.",
+								)}
+							</p>
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								className="border-blue-300 text-blue-900 hover:bg-blue-100"
+								onClick={handleInsertSmartPaymentInstructions}
+							>
+								<CreditCard className="h-4 w-4 mr-2" />
+								{t(
+									"emailDesigner.paymentInstructions.insertAction",
+									"Insert Smart Payment Instructions",
+								)}
+							</Button>
+						</AlertDescription>
+					</Alert>
+				</div>
+			)}
 				{/* Missing Values Alert - Top Priority */}
 			{hasEmailMissingValues(draftTemplate.blocks ?? []) && (
 				<div className="p-3 border-b shrink-0">
@@ -2647,6 +2729,33 @@ function createBlock(type: EmailTemplateBlock["type"], section: EmailSection): E
 			emptyMessage: "No data available",
 		};
 	}
+	if (type === "paymentInstructions") {
+		return {
+			id: crypto.randomUUID(),
+			type: "paymentInstructions",
+			section: "body",
+			ctaLabel: "Pay now",
+			fallbackMode: "bank_transfer",
+			showReference: true,
+			backgroundColor: "#f8fafc",
+			border: {
+				borderWidth: 1,
+				borderColor: "#e2e8f0",
+				borderStyle: "solid",
+				borderRadius: 10,
+			},
+			spacing: {
+				paddingTop: 12,
+				paddingRight: 12,
+				paddingBottom: 12,
+				paddingLeft: 12,
+				marginTop: 8,
+				marginRight: 0,
+				marginBottom: 8,
+				marginLeft: 0,
+			},
+		};
+	}
 	// Fallback
 	return {
 		id: crypto.randomUUID(),
@@ -2813,6 +2922,8 @@ function withMovedBlockSection(
 		case "socialLinks":
 		case "unsubscribe":
 			return { ...block, section: "footer" };
+		case "paymentInstructions":
+			return { ...block, section: "body" };
 		default:
 			return { ...block, section: requestedSection };
 	}

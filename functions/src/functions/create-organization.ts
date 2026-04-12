@@ -35,6 +35,14 @@ interface CreateOrganizationPayload {
   };
 }
 
+const ISO_CURRENCY_CODE_PATTERN = /^[A-Z]{3}$/;
+
+function normalizeCurrencyCode(value: string | undefined): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const normalized = value.trim().toUpperCase();
+  return ISO_CURRENCY_CODE_PATTERN.test(normalized) ? normalized : undefined;
+}
+
 interface CreateOrganizationResponse {
   success: boolean;
   organizationId: string;
@@ -126,6 +134,7 @@ export const createOrganization = onCall<
         requestedSlug: payload.name.trim(),
         fallbackName: payload.name.trim(),
       });
+      const normalizedOnboardingCurrency = normalizeCurrencyCode(payload.settings?.currency);
 
       // Prepare organization data using centralized defaults
       const orgData: OrganizationData = {
@@ -146,20 +155,24 @@ export const createOrganization = onCall<
             orgSlugAliases: [],
             domainPreference: "custom-first",
           },
-          defaultCurrency: DEFAULT_ORGANIZATION_SETTINGS.defaultCurrency,
+          defaultCurrency:
+            normalizedOnboardingCurrency || DEFAULT_ORGANIZATION_SETTINGS.defaultCurrency,
           defaultLanguage: DEFAULT_ORGANIZATION_SETTINGS.defaultLanguage,
           defaultTimezone: DEFAULT_ORGANIZATION_SETTINGS.defaultTimezone,
           invoicePrefix: DEFAULT_ORGANIZATION_SETTINGS.invoicePrefix,
           invoiceNumberStart: DEFAULT_ORGANIZATION_SETTINGS.invoiceNumberStart,
+          paymentFallback: { ...DEFAULT_ORGANIZATION_SETTINGS.paymentFallback },
           features: { ...DEFAULT_ORGANIZATION_SETTINGS.features },
           ai: { ...DEFAULT_ORGANIZATION_SETTINGS.ai },
+          currencyRates: {
+            overrides: [...DEFAULT_ORGANIZATION_SETTINGS.currencyRates.overrides],
+          },
           multiCurrency: {
             enabled: DEFAULT_ORGANIZATION_SETTINGS.multiCurrency.enabled,
             pairs: [...DEFAULT_ORGANIZATION_SETTINGS.multiCurrency.pairs],
           },
           // Whitelist onboarding-collected fields
           ...(payload.settings?.country && { country: payload.settings.country }),
-          ...(payload.settings?.currency && { currency: payload.settings.currency }),
           ...(payload.settings?.businessType && { businessType: payload.settings.businessType }),
           ...(payload.settings?.starterTemplates?.length && { starterTemplates: payload.settings.starterTemplates }),
         },

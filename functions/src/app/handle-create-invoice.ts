@@ -2,12 +2,17 @@ import { CreateInvoiceInput, invoiceDataSchema, InvoiceDataValue } from "../core
 import { getDatabaseService } from "../services/database-service";
 import { getInvoiceRepository } from "../repositories/invoice-repository";
 import { getProductRepository } from "../repositories/product-repository";
+import { getOrganizationRepository } from "../repositories/organization-repository";
 import { loggerService } from "../services/logger-service";
 import {
   loadLiveTemplateSnapshot,
   loadTemplateSnapshotFromVersionId,
 } from "../services/invoice-template-snapshot-service";
 import { ZodError } from "zod";
+import {
+  getOrganizationBaseCurrency,
+  normalizeInvoiceDataForCurrencyPolicy,
+} from "../utils/organization-currency-policy";
 
 /**
  * Application handler for creating an invoice.
@@ -33,8 +38,21 @@ export async function handleCreateInvoice(
         ? validatedData.paidAt || new Date().toISOString()
         : undefined;
 
-    // Get database service and repository
     const databaseService = getDatabaseService();
+    const organizationRepository = getOrganizationRepository(databaseService);
+    const organization = await organizationRepository.get({
+      id: validatedData.orgId,
+    });
+    if (!organization) {
+      throw new Error(`Organization not found: ${validatedData.orgId}`);
+    }
+    const organizationBaseCurrency = getOrganizationBaseCurrency(organization);
+    const normalizedInvoice = normalizeInvoiceDataForCurrencyPolicy({
+      data: validatedData.data as Record<string, unknown>,
+      defaultCurrency: organizationBaseCurrency,
+    });
+
+    // Get database service and repository
     const invoiceRepository = getInvoiceRepository(databaseService);
 
     // Freeze template at creation-time so future template edits/deletes do not affect this invoice.
@@ -66,6 +84,7 @@ export async function handleCreateInvoice(
     const invoiceId = await invoiceRepository.create({
       data: {
         ...validatedData,
+        data: normalizedInvoice.data as Record<string, InvoiceDataValue>,
         paidAt: normalizedPaidAt,
         templateSnapshot,
       },
@@ -80,7 +99,7 @@ export async function handleCreateInvoice(
       try {
         await deductProductQuantitiesForItems(
           payload.productIds,
-          validatedData.data,
+          normalizedInvoice.data as Record<string, InvoiceDataValue>,
           databaseService
         );
       } catch (error) {

@@ -33,7 +33,6 @@ import { languages } from "@/utils/languages";
 import { deleteField } from "firebase/firestore";
 import type { Organization } from "@/core";
 import { CURRENCIES, getExchangeRate } from "@/utils/currencies";
-import { Switch } from "@/components/ui/switch";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -102,8 +101,16 @@ function getOrganizationGeneralSchema() {
       .optional()
       .or(z.literal("")),
     defaultLanguage: z.string(),
-    multiCurrencyEnabled: z.boolean(),
-    multiCurrencyPairs: z.array(
+    defaultCurrency: z.string().length(3, "Currency must be a 3-letter code"),
+    paymentReferenceFormat: z.string().optional(),
+    paymentBankInstructions: z.string().optional(),
+    paymentBankAccountName: z.string().optional(),
+    paymentBankAccountNumber: z.string().optional(),
+    paymentIban: z.string().optional(),
+    paymentSwift: z.string().optional(),
+    paymentBeneficiaryName: z.string().optional(),
+    paymentBeneficiaryAddress: z.string().optional(),
+    currencyRateOverrides: z.array(
       z.object({
         from: z.string().min(1),
         to: z.string().min(1),
@@ -328,24 +335,37 @@ export default function OrganizationGeneralPage() {
       country: "",
       publicSlug: "",
       defaultLanguage: "en",
-      multiCurrencyEnabled: false,
-      multiCurrencyPairs: [],
+      defaultCurrency: "USD",
+      paymentReferenceFormat: "{{invoiceNumber}}",
+      paymentBankInstructions:
+        "Online payment is unavailable. Use bank transfer and include the payment reference.",
+      paymentBankAccountName: "",
+      paymentBankAccountNumber: "",
+      paymentIban: "",
+      paymentSwift: "",
+      paymentBeneficiaryName: "",
+      paymentBeneficiaryAddress: "",
+      currencyRateOverrides: [],
     },
   });
-  const { fields: currencyPairFields, append: appendCurrencyPair, remove: removeCurrencyPair } = useFieldArray({
+  const {
+    fields: currencyRateFields,
+    append: appendCurrencyRate,
+    remove: removeCurrencyRate,
+  } = useFieldArray({
     control,
-    name: "multiCurrencyPairs",
+    name: "currencyRateOverrides",
   });
   const publicSlugInput = watch("publicSlug") || "";
   const defaultLanguage = watch("defaultLanguage") || "en";
-  const multiCurrencyEnabled = watch("multiCurrencyEnabled");
+  const defaultCurrency = watch("defaultCurrency") || "USD";
   const publicSlugPreview = normalizePublicSlug(publicSlugInput) || normalizePublicSlug(organization?.name || "");
   const fetchLiveRate = async (from: string, to: string, index: number) => {
     const key = `${from}-${to}`;
     setFetchingRates((prev) => new Set(prev).add(key));
     try {
       const rate = await getExchangeRate(from, to);
-      setValue(`multiCurrencyPairs.${index}.rate`, rate, { shouldDirty: true });
+      setValue(`currencyRateOverrides.${index}.rate`, rate, { shouldDirty: true });
     } catch {
       toast.error(`Could not fetch live rate for ${from} → ${to}`);
     } finally {
@@ -366,7 +386,11 @@ export default function OrganizationGeneralPage() {
   useEffect(() => {
     if (organization) {
       const address = organization.settings?.address;
-      const savedMultiCurrency = organization.settings?.multiCurrency;
+      const savedCurrencyOverrides =
+        organization.settings?.currencyRates?.overrides ||
+        organization.settings?.multiCurrency?.pairs ||
+        [];
+      const paymentFallback = organization.settings?.paymentFallback;
       reset({
         name: organization.name || "",
         description: organization.description || "",
@@ -380,8 +404,18 @@ export default function OrganizationGeneralPage() {
         country: address?.country || "",
         publicSlug: organization.settings?.publicPages?.orgSlug || "",
         defaultLanguage: organization.settings?.defaultLanguage || "en",
-        multiCurrencyEnabled: savedMultiCurrency?.enabled ?? false,
-        multiCurrencyPairs: savedMultiCurrency?.pairs ?? [],
+        defaultCurrency: organization.settings?.defaultCurrency || "USD",
+        paymentReferenceFormat: paymentFallback?.referenceFormat || "{{invoiceNumber}}",
+        paymentBankInstructions:
+          paymentFallback?.bankInstructions ||
+          "Online payment is unavailable. Use bank transfer and include the payment reference.",
+        paymentBankAccountName: paymentFallback?.bankAccountName || "",
+        paymentBankAccountNumber: paymentFallback?.bankAccountNumber || "",
+        paymentIban: paymentFallback?.iban || "",
+        paymentSwift: paymentFallback?.swift || "",
+        paymentBeneficiaryName: paymentFallback?.beneficiaryName || "",
+        paymentBeneficiaryAddress: paymentFallback?.beneficiaryAddress || "",
+        currencyRateOverrides: savedCurrencyOverrides,
       });
     }
   }, [organization, reset]);
@@ -442,11 +476,28 @@ export default function OrganizationGeneralPage() {
       }
 
       updateData["settings.defaultLanguage"] = data.defaultLanguage || "en";
-
-      updateData["settings.multiCurrency"] = {
-        enabled: data.multiCurrencyEnabled,
-        pairs: data.multiCurrencyEnabled ? data.multiCurrencyPairs : [],
+      updateData["settings.defaultCurrency"] = data.defaultCurrency || "USD";
+      updateData["settings.paymentFallback"] = {
+        referenceFormat: data.paymentReferenceFormat?.trim() || "{{invoiceNumber}}",
+        bankInstructions:
+          data.paymentBankInstructions?.trim() ||
+          "Online payment is unavailable. Use bank transfer and include the payment reference.",
+        bankAccountName: data.paymentBankAccountName?.trim() || "",
+        bankAccountNumber: data.paymentBankAccountNumber?.trim() || "",
+        iban: data.paymentIban?.trim() || "",
+        swift: data.paymentSwift?.trim() || "",
+        beneficiaryName: data.paymentBeneficiaryName?.trim() || "",
+        beneficiaryAddress: data.paymentBeneficiaryAddress?.trim() || "",
       };
+      updateData["settings.currencyRates"] = {
+        overrides: data.currencyRateOverrides,
+      };
+      if ((organization.settings as { multiCurrency?: unknown } | undefined)?.multiCurrency) {
+        updateData["settings.multiCurrency"] = deleteField();
+      }
+      if ((organization.settings as { currency?: string } | undefined)?.currency) {
+        updateData["settings.currency"] = deleteField();
+      }
 
       await updateOrganization.mutateAsync({
         id: organization.id,
@@ -734,119 +785,178 @@ export default function OrganizationGeneralPage() {
           </CardContent>
         </Card>
 
-        {/* Multi-Currency */}
+        {/* Currency */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base font-semibold">Multi-Currency Pricing</CardTitle>
+            <CardTitle className="text-base font-semibold">Currency</CardTitle>
             <CardDescription className="text-sm">
-              Define conversion pairs. When a product is priced in the left currency, the converted price is shown alongside it on your public catalog.
+              Set a single base currency for this organization and optional conversion overrides.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Enable multi-currency display</Label>
-                <p className="text-xs text-muted-foreground">
-                  Converted prices appear below the product price on listing cards and detail pages.
-                </p>
-              </div>
-              <Switch
-                checked={multiCurrencyEnabled}
-                onCheckedChange={(checked) =>
-                  setValue("multiCurrencyEnabled", checked, { shouldDirty: true })
+            <div className="space-y-2 max-w-sm">
+              <Label>Base currency</Label>
+              <CurrencyCombobox
+                value={defaultCurrency}
+                onChange={(code) =>
+                  setValue("defaultCurrency", code, { shouldDirty: true })
                 }
               />
+              <p className="text-xs text-muted-foreground">
+                Products are stored in this currency.
+              </p>
             </div>
 
-            {multiCurrencyEnabled && (
-              <div className="space-y-3">
-                {currencyPairFields.length > 0 && (
-                  <div className="space-y-2">
-                    {/* Header */}
-                    <div className="grid grid-cols-[1fr_auto_1fr_auto_auto] items-center gap-2 px-1">
-                      <span className="text-xs text-muted-foreground">From</span>
-                      <span className="text-xs text-muted-foreground text-center w-4">=</span>
-                      <span className="text-xs text-muted-foreground">To (rate)</span>
-                      <span />
-                      <span />
-                    </div>
-
-                    {currencyPairFields.map((field, index) => {
-                      const isFetching = fetchingRates.has(`${field.from}-${field.to}`);
-                      const fromValue = watch(`multiCurrencyPairs.${index}.from`);
-                      const toValue = watch(`multiCurrencyPairs.${index}.to`);
-                      return (
-                        <div key={field.id} className="grid grid-cols-[1fr_auto_1fr_auto_auto] items-start gap-2">
-                          {/* From currency picker */}
-                          <CurrencyCombobox
-                            value={fromValue}
-                            onChange={(code) => setValue(`multiCurrencyPairs.${index}.from`, code, { shouldDirty: true })}
-                          />
-
-                          {/* Equals */}
-                          <span className="text-sm text-muted-foreground font-medium mt-2">=</span>
-
-                          {/* Rate input + To currency label */}
-                          <div className="space-y-1">
-                            <div className="relative flex items-center">
-                              <Input
-                                type="number"
-                                step="0.000001"
-                                min="0.000001"
-                                placeholder="0.00"
-                                {...register(`multiCurrencyPairs.${index}.rate`, { valueAsNumber: true })}
-                                className={`pr-14 ${errors.multiCurrencyPairs?.[index]?.rate ? "border-red-500" : ""}`}
-                              />
-                              <span className="absolute right-3 text-xs font-semibold text-muted-foreground pointer-events-none select-none">
-                                {toValue || "—"}
-                              </span>
-                            </div>
-                            <CurrencyCombobox
-                              value={toValue}
-                              onChange={(code) => setValue(`multiCurrencyPairs.${index}.to`, code, { shouldDirty: true })}
-                            />
-                          </div>
-
-                          {/* Fetch live rate */}
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            disabled={isFetching || !fromValue || !toValue}
-                            onClick={() => fetchLiveRate(fromValue, toValue, index)}
-                            title="Fetch live rate"
-                            className="shrink-0 mt-0.5"
-                          >
-                            <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
-                          </Button>
-
-                          {/* Remove */}
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => removeCurrencyPair(index)}
-                            className="shrink-0 text-muted-foreground hover:text-destructive mt-0.5"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => appendCurrencyPair({ from: "", to: "", rate: 1 })}
-                >
-                  <Plus className="mr-2 h-3.5 w-3.5" />
-                  Add conversion pair
-                </Button>
+            <div className="space-y-3 border-t pt-4">
+              <div className="space-y-0.5">
+                <Label>Conversion overrides</Label>
+                <p className="text-xs text-muted-foreground">
+                  Manual rates are used before live FX rates.
+                </p>
               </div>
-            )}
+
+              {currencyRateFields.length > 0 && (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-[1fr_auto_1fr_auto_auto] items-center gap-2 px-1">
+                    <span className="text-xs text-muted-foreground">From</span>
+                    <span className="text-xs text-muted-foreground text-center w-4">=</span>
+                    <span className="text-xs text-muted-foreground">To (rate)</span>
+                    <span />
+                    <span />
+                  </div>
+
+                  {currencyRateFields.map((field, index) => {
+                    const isFetching = fetchingRates.has(`${field.from}-${field.to}`);
+                    const fromValue = watch(`currencyRateOverrides.${index}.from`);
+                    const toValue = watch(`currencyRateOverrides.${index}.to`);
+                    return (
+                      <div key={field.id} className="grid grid-cols-[1fr_auto_1fr_auto_auto] items-start gap-2">
+                        <CurrencyCombobox
+                          value={fromValue}
+                          onChange={(code) =>
+                            setValue(`currencyRateOverrides.${index}.from`, code, { shouldDirty: true })
+                          }
+                        />
+
+                        <span className="text-sm text-muted-foreground font-medium mt-2">=</span>
+
+                        <div className="space-y-1">
+                          <div className="relative flex items-center">
+                            <Input
+                              type="number"
+                              step="0.000001"
+                              min="0.000001"
+                              placeholder="0.00"
+                              {...register(`currencyRateOverrides.${index}.rate`, { valueAsNumber: true })}
+                              className={`pr-14 ${errors.currencyRateOverrides?.[index]?.rate ? "border-red-500" : ""}`}
+                            />
+                            <span className="absolute right-3 text-xs font-semibold text-muted-foreground pointer-events-none select-none">
+                              {toValue || "—"}
+                            </span>
+                          </div>
+                          <CurrencyCombobox
+                            value={toValue}
+                            onChange={(code) =>
+                              setValue(`currencyRateOverrides.${index}.to`, code, { shouldDirty: true })
+                            }
+                          />
+                        </div>
+
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          disabled={isFetching || !fromValue || !toValue}
+                          onClick={() => fetchLiveRate(fromValue, toValue, index)}
+                          title="Fetch live rate"
+                          className="shrink-0 mt-0.5"
+                        >
+                          <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
+                        </Button>
+
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeCurrencyRate(index)}
+                          className="shrink-0 text-muted-foreground hover:text-destructive mt-0.5"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => appendCurrencyRate({ from: defaultCurrency, to: "", rate: 1 })}
+              >
+                <Plus className="mr-2 h-3.5 w-3.5" />
+                Add conversion override
+              </Button>
+            </div>
+
+            <div className="space-y-3 border-t pt-4">
+              <div className="space-y-0.5">
+                <Label>Fallback payment instructions</Label>
+                <p className="text-xs text-muted-foreground">
+                  Used in Smart Payment Instructions when online payment link is unavailable.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="paymentReferenceFormat">Reference format</Label>
+                <Input
+                  id="paymentReferenceFormat"
+                  placeholder="{{invoiceNumber}}"
+                  {...register("paymentReferenceFormat")}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Supported variables: {"{{invoiceNumber}}"}, {"{{invoiceId}}"}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="paymentBankInstructions">Fallback instructions</Label>
+                <Textarea
+                  id="paymentBankInstructions"
+                  rows={3}
+                  placeholder="Online payment is unavailable. Use bank transfer and include the payment reference."
+                  {...register("paymentBankInstructions")}
+                />
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="paymentBankAccountName">Bank account name</Label>
+                  <Input id="paymentBankAccountName" {...register("paymentBankAccountName")} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="paymentBankAccountNumber">Bank account number</Label>
+                  <Input id="paymentBankAccountNumber" {...register("paymentBankAccountNumber")} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="paymentIban">IBAN</Label>
+                  <Input id="paymentIban" {...register("paymentIban")} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="paymentSwift">SWIFT / BIC</Label>
+                  <Input id="paymentSwift" {...register("paymentSwift")} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="paymentBeneficiaryName">Beneficiary name</Label>
+                  <Input id="paymentBeneficiaryName" {...register("paymentBeneficiaryName")} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="paymentBeneficiaryAddress">Beneficiary address</Label>
+                  <Input id="paymentBeneficiaryAddress" {...register("paymentBeneficiaryAddress")} />
+                </div>
+              </div>
+            </div>
           </CardContent>
         </Card>
 

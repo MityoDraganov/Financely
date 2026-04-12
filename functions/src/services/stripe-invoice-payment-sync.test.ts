@@ -104,7 +104,7 @@ test("buildStripeInvoiceSyncInput maps invoice data and amount", () => {
   assert.equal(input.metadata.internalInvoiceId, "inv_local_123");
 });
 
-test("buildStripeDraftInvoiceCreateParams requires card and customer_balance", () => {
+test("buildStripeDraftInvoiceCreateParams uses charge_automatically and card only", () => {
   const syncInput = buildStripeInvoiceSyncInput({
     invoice: makeInvoice(),
     organization: makeOrganization(),
@@ -117,9 +117,42 @@ test("buildStripeDraftInvoiceCreateParams requires card and customer_balance", (
 
   assert.deepEqual(
     draftParams.payment_settings?.payment_method_types,
-    ["card", "customer_balance"]
+    ["card"]
   );
-  assert.equal(draftParams.collection_method, "send_invoice");
+  assert.equal(draftParams.currency, "usd");
+  assert.equal(draftParams.collection_method, "charge_automatically");
+});
+
+test("buildStripeDraftInvoiceCreateParams keeps charge_automatically without email", () => {
+  const invoiceWithoutEmail = makeInvoice();
+  delete (invoiceWithoutEmail.data as { buyer?: { email?: string } }).buyer?.email;
+
+  const syncInput = buildStripeInvoiceSyncInput({
+    invoice: invoiceWithoutEmail,
+    organization: makeOrganization(),
+  });
+
+  const draftParams = buildStripeDraftInvoiceCreateParams({
+    customerId: "cus_123",
+    syncInput,
+  });
+
+  assert.equal(syncInput.customerEmail, undefined);
+  assert.equal(draftParams.collection_method, "charge_automatically");
+});
+
+test("buildStripeInvoiceSyncInput fails when invoice currency is invalid", () => {
+  const invoice = makeInvoice();
+  (invoice.data as Record<string, unknown>).currency = "USDX";
+
+  assert.throws(
+    () =>
+      buildStripeInvoiceSyncInput({
+        invoice,
+        organization: makeOrganization(),
+      }),
+    /currency is missing or invalid/i,
+  );
 });
 
 test("syncStripeInvoiceForInternalInvoice marks sync_failed when Stripe call fails", async () => {

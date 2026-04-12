@@ -24,7 +24,8 @@ import {
   extractEmailTemplateRequirements,
 } from "../utils/email-template-requirements";
 import { formatInvoiceAmount } from "../utils/invoice-helpers";
-import { getStripeInvoicePaymentMetadata } from "../utils/invoice-payment";
+import { resolveInvoicePaymentDelivery } from "../utils/invoice-payment-delivery";
+import { injectSmartPaymentInstructionsBlocks } from "../utils/smart-payment-instructions";
 
 const PREVIEW_TTL_MS = 30 * 60 * 1000;
 
@@ -41,6 +42,12 @@ interface PreviewInvoiceEmailResponse {
   text: string;
   toEmail: string;
   expiresAt: string;
+  paymentDelivery: {
+    status: "payable_online" | "payable_fallback" | "paid" | "cancelled";
+    hasOnlineLink: boolean;
+    warnings: string[];
+    reference: string;
+  };
 }
 
 interface EmailTemplate {
@@ -210,8 +217,12 @@ export const previewInvoiceEmail = onCall<
     const organization = await organizationRepository.get({ id: invoice.orgId });
     const pdfUrl = await handleRenderInvoicePdf(invoiceId);
     const invoiceAfterPdfRender = (await invoiceRepository.get({ id: invoiceId })) ?? invoice;
-    const stripePayment = getStripeInvoicePaymentMetadata(invoice as unknown as { payment?: unknown });
-    const invoiceUrl = stripePayment?.hostedInvoiceUrl?.trim() || pdfUrl;
+    const paymentDelivery = resolveInvoicePaymentDelivery({
+      invoice: invoiceAfterPdfRender as any,
+      organization,
+      pdfUrl,
+    });
+    const invoiceUrl = paymentDelivery.viewUrl || pdfUrl;
 
     const invoiceData = invoice.data as Record<string, InvoiceDataValue>;
     const buyer = (invoiceData.buyer || invoiceData.customer) as
@@ -275,10 +286,32 @@ export const previewInvoiceEmail = onCall<
 
       const buyerData = toRecord(invoiceData.buyer);
       const customerData = toRecord(invoiceData.customer) ?? buyerData;
+      const existingPaymentData = toRecord(
+        (invoiceAfterPdfRender as unknown as { payment?: unknown }).payment
+      );
+      const invoiceLinks = {
+        viewUrl: paymentDelivery.viewUrl || invoiceUrl,
+        payUrl: paymentDelivery.payUrl || "",
+        pdfUrl,
+      };
       const invoiceEntityData: Record<string, unknown> = {
         ...(invoiceData as Record<string, unknown>),
         buyer: buyerData ?? customerData,
         customer: customerData ?? buyerData,
+        invoiceUrl,
+        viewUrl: invoiceLinks.viewUrl,
+        payUrl: invoiceLinks.payUrl,
+        pdfUrl,
+        links: invoiceLinks,
+        payment: {
+          ...(existingPaymentData ?? {}),
+          hostedInvoiceUrl:
+            paymentDelivery.payUrl ||
+            (typeof existingPaymentData?.hostedInvoiceUrl === "string"
+              ? existingPaymentData.hostedInvoiceUrl
+              : null),
+        },
+        paymentDelivery,
       };
       const recipientCompanyName =
         typeof customerData?.name === "string" ? customerData.name : undefined;
@@ -295,9 +328,9 @@ export const previewInvoiceEmail = onCall<
           company: recipientCompanyName,
         },
         links: {
-          viewUrl: invoiceUrl,
-          payUrl: invoiceUrl,
-          pdfUrl,
+          viewUrl: invoiceLinks.viewUrl,
+          payUrl: invoiceLinks.payUrl,
+          pdfUrl: invoiceLinks.pdfUrl,
         },
       });
 
@@ -349,7 +382,10 @@ export const previewInvoiceEmail = onCall<
         enableLogging: true,
       });
       const subject = rendered.subject || `Invoice #${invoiceNumber}`;
-      const html = rendered.html;
+      const html = injectSmartPaymentInstructionsBlocks({
+        html: rendered.html,
+        paymentDelivery,
+      });
       const text =
         rendered.preheader || `Invoice #${invoiceNumber} - Amount: ${formattedAmount}, Due: ${formattedDueDate}`;
 
@@ -396,7 +432,20 @@ export const previewInvoiceEmail = onCall<
         },
       });
 
-      return { previewId, subject, html, text, toEmail: resolvedToEmail, expiresAt };
+      return {
+        previewId,
+        subject,
+        html,
+        text,
+        toEmail: resolvedToEmail,
+        expiresAt,
+        paymentDelivery: {
+          status: paymentDelivery.status,
+          hasOnlineLink: paymentDelivery.hasOnlineLink,
+          warnings: paymentDelivery.warnings,
+          reference: paymentDelivery.reference,
+        },
+      };
     } catch (error) {
       const details =
         error instanceof Error && error.message.startsWith("{")

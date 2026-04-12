@@ -6,7 +6,7 @@ import { useCreateEmailTemplate } from "@/hooks/repository-hooks/use-create-emai
 import { EmailDesignerTemplateProvider } from "@/contexts/email-designer-template-context";
 import EmailDesignerPage from "./email-designer";
 import AppLayout from "@/components/layout";
-import type { EmailTemplateData, EmailTemplateDesignTokens } from "@/core";
+import type { EmailTemplateData, EmailTemplateDesignTokens, EmailTemplateBlock } from "@/core";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { CreateEmailTemplateDialog } from "@/components/email-designer/create-email-template-dialog";
 import {
@@ -116,6 +116,38 @@ export default function EmailDesignerWrapper() {
 		if (!orgId) return;
 
 		const uniqueName = `New Email Template ${templates.length + 1}`;
+		const allowedContexts = allowedContextsForTemplateType(selectedTemplateType);
+		const includeSmartPaymentBlock =
+			allowedContexts.includes("invoice_send") || selectedTemplateType === "invoice";
+		const defaultBlocks: EmailTemplateBlock[] = includeSmartPaymentBlock
+			? [
+					{
+						id: crypto.randomUUID(),
+						type: "paymentInstructions",
+						section: "body",
+						ctaLabel: "Pay now",
+						fallbackMode: "bank_transfer",
+						showReference: true,
+						backgroundColor: "#f8fafc",
+						border: {
+							borderWidth: 1,
+							borderColor: "#e2e8f0",
+							borderStyle: "solid",
+							borderRadius: 10,
+						},
+						spacing: {
+							paddingTop: 12,
+							paddingRight: 12,
+							paddingBottom: 12,
+							paddingLeft: 12,
+							marginTop: 8,
+							marginRight: 0,
+							marginBottom: 8,
+							marginLeft: 0,
+						},
+					},
+				]
+			: [];
 		const templateData: EmailTemplateData = {
 			orgId,
 			name: uniqueName,
@@ -125,9 +157,9 @@ export default function EmailDesignerWrapper() {
 			version: 1,
 			isLocked: false,
 			isSystemDefault: false,
-			allowedContexts: allowedContextsForTemplateType(selectedTemplateType),
+			allowedContexts,
 			htmlContent: "",
-			blocks: [],
+			blocks: defaultBlocks,
 			designTokens: brandDesignTokens,
 			placeholders: [],
 		};

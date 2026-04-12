@@ -151,7 +151,16 @@ export interface FunctionsService {
     toEmail: string;
     emailTemplateId?: string;
     previewId?: string;
-  }): Promise<{ sent: boolean }>;
+  }): Promise<{
+    sent: boolean;
+    paymentDelivery: {
+      status: "payable_online" | "payable_fallback" | "paid" | "cancelled";
+      hasOnlineLink: boolean;
+      warnings: string[];
+      reference: string;
+      usedFallback: boolean;
+    };
+  }>;
 
   previewInvoiceEmail(payload: {
     invoiceId: string;
@@ -164,6 +173,12 @@ export interface FunctionsService {
     text: string;
     toEmail: string;
     expiresAt: string;
+    paymentDelivery: {
+      status: "payable_online" | "payable_fallback" | "paid" | "cancelled";
+      hasOnlineLink: boolean;
+      warnings: string[];
+      reference: string;
+    };
   }>;
 
   sendProposalEmail(payload: {

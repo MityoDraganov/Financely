@@ -1,9 +1,11 @@
 import { CreateProductInput, productDataSchema } from "../core/entities/product";
 import { getDatabaseService } from "../services/database-service";
 import { getProductRepository } from "../repositories/product-repository";
+import { getOrganizationRepository } from "../repositories/organization-repository";
 import { getBrandContextCache } from "../services/brand-context-cache";
 import { ZodError } from "zod";
 import { removeUndefinedValues } from "../utils/remove-undefined-values";
+import { getOrganizationBaseCurrency } from "../utils/organization-currency-policy";
 
 /**
  * Application handler for creating a product.
@@ -22,8 +24,19 @@ export async function handleCreateProduct(
   payload: CreateProductInput
 ): Promise<string> {
   try {
+    const databaseService = getDatabaseService();
+    const organizationRepository = getOrganizationRepository(databaseService);
+    const organization = await organizationRepository.get({
+      id: payload.organizationId,
+    });
+    if (!organization) {
+      throw new Error(`Organization not found: ${payload.organizationId}`);
+    }
+    const organizationBaseCurrency = getOrganizationBaseCurrency(organization);
+
     const normalizedPayload = removeUndefinedValues({
       ...payload,
+      currency: organizationBaseCurrency,
       description: payload.description ?? undefined,
       sku: payload.sku ?? undefined,
       barcode: payload.barcode ?? undefined,
@@ -48,7 +61,6 @@ export async function handleCreateProduct(
     const validatedData = productDataSchema.parse(normalizedPayload);
 
     // Get database service and repository
-    const databaseService = getDatabaseService();
     const productRepository = getProductRepository(databaseService);
 
     // Create the product

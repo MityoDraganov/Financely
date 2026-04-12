@@ -24,6 +24,7 @@ import {
 } from "firebase/firestore";
 import type {
   PublicCatalogResponse,
+  PublicMultiCurrencyPair,
   PublicProductFields,
   PublicProductMetafield,
 } from "./types";
@@ -54,6 +55,49 @@ const LISTING_FALLBACK_SCAN_BATCH_SIZE = 200;
 const LISTING_FALLBACK_SCAN_MAX_DOCS = 4000;
 const PRODUCT_FALLBACK_SCAN_BATCH_SIZE = 200;
 const PRODUCT_FALLBACK_SCAN_MAX_DOCS = 2000;
+const CURRENCY_CODE_PATTERN = /^[A-Z]{3}$/;
+
+function normalizeCurrencyCode(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const normalized = raw.trim().toUpperCase();
+  return CURRENCY_CODE_PATTERN.test(normalized) ? normalized : null;
+}
+
+function getOrganizationBaseCurrency(organization: Organization): string {
+  return (
+    normalizeCurrencyCode(organization.settings?.defaultCurrency) ||
+    normalizeCurrencyCode((organization.settings as { currency?: string } | undefined)?.currency) ||
+    "USD"
+  );
+}
+
+function getOrganizationCurrencyPairs(organization: Organization): PublicMultiCurrencyPair[] {
+  const pairs: PublicMultiCurrencyPair[] = [];
+  const seen = new Set<string>();
+
+  const pushPair = (fromRaw: unknown, toRaw: unknown, rateRaw: unknown) => {
+    const from = normalizeCurrencyCode(fromRaw);
+    const to = normalizeCurrencyCode(toRaw);
+    const rate = typeof rateRaw === "number" ? rateRaw : Number(rateRaw);
+    if (!from || !to || !Number.isFinite(rate) || rate <= 0 || from === to) return;
+
+    const key = `${from}->${to}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    pairs.push({ from, to, rate });
+  };
+
+  for (const override of organization.settings?.currencyRates?.overrides || []) {
+    pushPair(override?.from, override?.to, override?.rate);
+  }
+
+  // Backward compatibility with legacy multi-currency settings.
+  for (const pair of organization.settings?.multiCurrency?.pairs || []) {
+    pushPair(pair?.from, pair?.to, pair?.rate);
+  }
+
+  return pairs;
+}
 
 function mapDoc<T>(snapshot: QueryDocumentSnapshot<DocumentData>): T {
   return {
@@ -514,6 +558,7 @@ function buildListingCard(
   product: Product,
   canonicalOrgSlug: string,
   baseUrl: string,
+  organizationBaseCurrency: string,
 ): {
   id: string;
   name: string;
@@ -542,7 +587,7 @@ function buildListingCard(
       id: product.id,
       name: listingCard.name || product.name,
       price: typeof listingCard.price === "number" ? listingCard.price : product.price,
-      currency: listingCard.currency || product.currency,
+      currency: organizationBaseCurrency,
       image: listingCard.image || product.images?.[0],
       category: product.category || listingCard.category || resolvedCollection.label,
       createdAt: listingCard.createdAt || toIsoDate(product.createdAt),
@@ -554,7 +599,7 @@ function buildListingCard(
     id: product.id,
     name: product.name,
     price: product.price,
-    currency: product.currency,
+    currency: organizationBaseCurrency,
     image: product.images?.[0],
     category: product.category || resolvedCollection.label,
     canonicalPath,
@@ -819,12 +864,15 @@ async function fetchLiveProductMetafields(
   return buildPublicMetafields(metafields, definitions);
 }
 
-function buildFallbackPublicProductFields(product: Product): PublicProductFields {
+function buildFallbackPublicProductFields(
+  product: Product,
+  organizationBaseCurrency: string,
+): PublicProductFields {
   return {
     name: product.name,
     description: product.description,
     price: product.price,
-    currency: product.currency,
+    currency: organizationBaseCurrency,
     barcode: product.barcode,
     category: product.category,
     tags: product.tags || [],
@@ -993,23 +1041,25 @@ export async function resolvePublicCatalogPage(params: {
   }
 
   const locale = organization.settings?.defaultLanguage || params.locale || "en";
+  const organizationBaseCurrency = getOrganizationBaseCurrency(organization);
+  const organizationCurrencyPairs = getOrganizationCurrencyPairs(organization);
 
   const canonicalOrgSlug = slugifySegment(
     organization.settings?.publicPages?.orgSlug || organization.name,
   );
   const baseUrl = getAppBaseUrl();
-  const rawMultiCurrency = organization.settings?.multiCurrency;
   const organizationPayload = {
     id: organization.id,
     name: organization.name,
     orgSlug: canonicalOrgSlug,
+    baseCurrency: organizationBaseCurrency,
     logoUrl: organization.settings?.branding?.customLogo || organization.logoUrl,
     locale,
     multiCurrency:
-      rawMultiCurrency?.enabled && rawMultiCurrency.pairs.length > 0
+      organizationCurrencyPairs.length > 0
         ? {
             enabled: true,
-            pairs: rawMultiCurrency.pairs,
+            pairs: organizationCurrencyPairs,
           }
         : undefined,
   };
@@ -1102,7 +1152,8 @@ export async function resolvePublicCatalogPage(params: {
 
     const snapshot = product.publicPage?.detailSnapshot;
     const publicFields = {
-      ...(snapshot?.fields || buildFallbackPublicProductFields(product)),
+      ...(snapshot?.fields ||
+        buildFallbackPublicProductFields(product, organizationBaseCurrency)),
       sku: undefined,
     };
     let metafields = snapshot?.metafields || [];
@@ -1170,7 +1221,12 @@ export async function resolvePublicCatalogPage(params: {
     pageSize: PAGE_SIZE,
   });
   const listingItems = listingResult.products.map((product) =>
-    buildListingCard(product, canonicalOrgSlug, baseUrl),
+    buildListingCard(
+      product,
+      canonicalOrgSlug,
+      baseUrl,
+      organizationBaseCurrency,
+    ),
   );
 
   if (pageKind === "collection_products") {

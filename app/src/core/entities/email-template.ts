@@ -94,6 +94,7 @@ const emailBlockBaseSchema = z.object({
     "columns",
     "container",
     "table", // Data-aware email table element
+    "paymentInstructions",
     "rawHtml" // For preserving HTML that can't be parsed into visual blocks
   ]),
   section: z.enum(["header", "body", "footer"]).default("body"),
@@ -284,6 +285,17 @@ export const emailRawHtmlBlockSchema = emailBlockBaseSchema.extend({
   border: emailBorderSchema.optional(),
 });
 
+export const emailPaymentInstructionsBlockSchema = emailBlockBaseSchema.extend({
+  type: z.literal("paymentInstructions"),
+  section: z.literal("body").default("body"),
+  ctaLabel: z.string().default("Pay now"),
+  fallbackMode: z.enum(["bank_transfer", "minimal"]).default("bank_transfer"),
+  showReference: z.boolean().default(true),
+  spacing: emailSpacingSchema.optional(),
+  backgroundColor: z.string().optional(),
+  border: emailBorderSchema.optional(),
+});
+
 // Email Table Block Schema - Data-aware, email-safe table element
 export const emailTableColumnSchema = z.object({
   id: z.string().min(1),
@@ -365,6 +377,7 @@ export const emailTemplateBlockSchema = z.discriminatedUnion("type", [
   emailColumnsBlockSchema,
   emailContainerBlockSchema,
   emailRawHtmlBlockSchema,
+  emailPaymentInstructionsBlockSchema,
   emailTableBlockSchema,
 ]);
 

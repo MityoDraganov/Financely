@@ -20,7 +20,6 @@ import { DatabaseCollection } from "../repositories/config";
 import {
   type InvoiceDataValue,
   type InvoiceDeliveryEvent,
-  INVOICE_PAYMENT_SYNC_STATUSES,
   INVOICE_STATUSES,
   normalizeInvoiceStatus,
 } from "../core";
@@ -42,8 +41,8 @@ import {
   evaluateTemplateRequirements,
   extractEmailTemplateRequirements,
 } from "../utils/email-template-requirements";
-import { isOrganizationConnectReady } from "../services/stripe-connect-payments";
-import { getStripeInvoicePaymentMetadata } from "../utils/invoice-payment";
+import { resolveInvoicePaymentDelivery } from "../utils/invoice-payment-delivery";
+import { injectSmartPaymentInstructionsBlocks } from "../utils/smart-payment-instructions";
 
 // Email template types (from Realtime Database)
 interface EmailTemplate {
@@ -126,6 +125,17 @@ interface SendInvoiceEmailPayload {
   previewId?: string;
 }
 
+interface SendInvoiceEmailResponse {
+  sent: boolean;
+  paymentDelivery: {
+    status: "payable_online" | "payable_fallback" | "paid" | "cancelled";
+    hasOnlineLink: boolean;
+    warnings: string[];
+    reference: string;
+    usedFallback: boolean;
+  };
+}
+
 const toRecord = (value: unknown): Record<string, unknown> | undefined => {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return undefined;
@@ -178,36 +188,70 @@ const buildEmailPreviewFingerprint = ({
   ].join("|");
 };
 
+const escapeRegExp = (value: string): string =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 const extractPdfPathFromUrl = (pdfUrl: string, bucketName: string): string => {
-  if (pdfUrl.startsWith("gs://")) {
-    return pdfUrl.replace(`gs://${bucketName}/`, "");
+  const normalizedUrl = pdfUrl.trim();
+
+  if (normalizedUrl.startsWith("gs://")) {
+    const gsMatch = normalizedUrl.match(/^gs:\/\/([^/]+)\/(.+)$/);
+    if (gsMatch) {
+      return gsMatch[2];
+    }
+    throw new Error(`Could not extract PDF path from URL: ${pdfUrl}`);
   }
 
-  if (pdfUrl.includes("storage.googleapis.com")) {
-    const urlParts = pdfUrl.split("storage.googleapis.com/");
+  const withoutQuery = normalizedUrl.split("?")[0];
+  const withoutProtocolHost = withoutQuery.replace(/^https?:\/\/[^/]+\//, "");
+  const withoutStorageApiPrefix = withoutProtocolHost
+    .replace(/^v0\/b\/[^/]+\/o\//, "")
+    .replace(/^v0\/b\/o\//, "")
+    .replace(/^o\//, "");
+  const withoutBucketPrefix = withoutStorageApiPrefix
+    .replace(new RegExp(`^${escapeRegExp(bucketName)}\/`), "");
+
+  if (withoutBucketPrefix && withoutBucketPrefix !== withoutProtocolHost) {
+    return decodeURIComponent(withoutBucketPrefix);
+  }
+
+  if (normalizedUrl.includes("storage.googleapis.com")) {
+    const urlParts = normalizedUrl.split("storage.googleapis.com/");
     if (urlParts.length > 1) {
-      return urlParts[1].split("?")[0].replace(`${bucketName}/`, "");
+      return decodeURIComponent(urlParts[1].split("?")[0].replace(`${bucketName}/`, ""));
     }
     throw new Error("Could not extract PDF path from URL");
   }
 
-  if (pdfUrl.includes("/o/")) {
-    const urlParts = pdfUrl.split("/o/");
+  if (normalizedUrl.includes("/o/")) {
+    const urlParts = normalizedUrl.split("/o/");
     if (urlParts.length > 1) {
       return decodeURIComponent(urlParts[1].split("?")[0]);
     }
     throw new Error("Could not extract PDF path from URL");
   }
 
-  const urlMatch = pdfUrl.match(new RegExp(`${bucketName}/([^?]+)`));
+  const urlMatch = normalizedUrl.match(new RegExp(`${escapeRegExp(bucketName)}/([^?]+)`));
   if (urlMatch) {
-    return urlMatch[1];
+    return decodeURIComponent(urlMatch[1]);
   }
-  const parts = pdfUrl.split(`${bucketName}/`);
+  const parts = normalizedUrl.split(`${bucketName}/`);
   if (parts.length > 1) {
-    return parts[1].split("?")[0];
+    return decodeURIComponent(parts[1].split("?")[0]);
   }
+  if (!normalizedUrl.includes("://")) {
+    return decodeURIComponent(normalizedUrl);
+  }
+
   throw new Error(`Could not extract PDF path from URL: ${pdfUrl}`);
+};
+
+const isNoSuchStorageObjectError = (error: unknown): boolean => {
+  if (!error || typeof error !== "object" || Array.isArray(error)) {
+    return false;
+  }
+  const message = (error as { message?: unknown }).message;
+  return typeof message === "string" && /No such object/i.test(message);
 };
 
 const toInvoiceDeliveryHistory = (value: unknown): InvoiceDeliveryEvent[] => {
@@ -244,7 +288,7 @@ const toInvoiceDeliveryHistory = (value: unknown): InvoiceDeliveryEvent[] => {
  *   sent: boolean  // Whether the email was sent successfully
  * }
  */
-export const sendInvoiceEmail = onCall<SendInvoiceEmailPayload, Promise<{ sent: boolean }>>(
+export const sendInvoiceEmail = onCall<SendInvoiceEmailPayload, Promise<SendInvoiceEmailResponse>>(
   {
     region: "us-central1",
     cors: true,
@@ -306,21 +350,6 @@ export const sendInvoiceEmail = onCall<SendInvoiceEmailPayload, Promise<{ sent: 
         }
       }
 
-      if (!organization || !isOrganizationConnectReady((organization as any).payments)) {
-        throw new HttpsError(
-          "failed-precondition",
-          "Stripe Connect onboarding is required before sending invoices. Complete onboarding in Settings > Organization > Billing."
-        );
-      }
-
-      const stripePayment = getStripeInvoicePaymentMetadata(invoice as unknown as { payment?: unknown });
-      if (stripePayment?.syncStatus === INVOICE_PAYMENT_SYNC_STATUSES.SYNC_FAILED) {
-        throw new HttpsError(
-          "failed-precondition",
-          "Invoice payment link sync failed. Retry invoice payment sync before sending."
-        );
-      }
-
       const previewSnapshotRepository = getGenericRepository<
         EmailPreviewSnapshot,
         Omit<EmailPreviewSnapshot, "id">
@@ -371,9 +400,28 @@ export const sendInvoiceEmail = onCall<SendInvoiceEmailPayload, Promise<{ sent: 
       // Download PDF from storage to attach to email
       const storage = getStorage();
       const bucket = storage.bucket();
-      const pdfPath = extractPdfPathFromUrl(pdfUrl, bucket.name);
-      const file = bucket.file(pdfPath);
-      const [pdfBuffer] = await file.download();
+      let pdfBuffer: Buffer;
+      let pdfPath: string;
+      try {
+        pdfPath = extractPdfPathFromUrl(pdfUrl, bucket.name);
+        const file = bucket.file(pdfPath);
+        [pdfBuffer] = await file.download();
+      } catch (downloadError) {
+        if (!isNoSuchStorageObjectError(downloadError)) {
+          throw downloadError;
+        }
+
+        logger.warn("Invoice PDF object missing in storage, regenerating and retrying download", {
+          invoiceId,
+          orgId: invoice.orgId,
+          pdfUrl,
+        });
+
+        pdfUrl = await handleRenderInvoicePdf(invoiceId);
+        pdfPath = extractPdfPathFromUrl(pdfUrl, bucket.name);
+        const regeneratedFile = bucket.file(pdfPath);
+        [pdfBuffer] = await regeneratedFile.download();
+      }
 
       // Extract invoice data for email
       const invoiceData = invoice.data as Record<string, InvoiceDataValue>;
@@ -393,15 +441,12 @@ export const sendInvoiceEmail = onCall<SendInvoiceEmailPayload, Promise<{ sent: 
         ? new Date(dueDate).toLocaleDateString()
         : "N/A";
 
-      const stripeHostedInvoiceUrl = stripePayment?.hostedInvoiceUrl?.trim();
-      if (stripePayment && !stripeHostedInvoiceUrl) {
-        throw new HttpsError(
-          "failed-precondition",
-          "Stripe payment link is missing for this invoice. Retry invoice payment sync before sending."
-        );
-      }
-
-      const invoiceUrl = stripeHostedInvoiceUrl || pdfUrl;
+      const paymentDelivery = resolveInvoicePaymentDelivery({
+        invoice: invoice as any,
+        organization,
+        pdfUrl,
+      });
+      const invoiceUrl = paymentDelivery.viewUrl || pdfUrl;
 
       // Initialize email service with secrets
       const emailService = new ResendEmailService({
@@ -518,10 +563,30 @@ export const sendInvoiceEmail = onCall<SendInvoiceEmailPayload, Promise<{ sent: 
 
           const buyerData = toRecord(invoiceData.buyer);
           const customerData = toRecord(invoiceData.customer) ?? buyerData;
+          const existingPaymentData = toRecord((invoice as unknown as { payment?: unknown }).payment);
+          const invoiceLinks = {
+            viewUrl: paymentDelivery.viewUrl || invoiceUrl,
+            payUrl: paymentDelivery.payUrl || "",
+            pdfUrl,
+          };
           const invoiceEntityData: Record<string, unknown> = {
             ...(invoiceData as Record<string, unknown>),
             buyer: buyerData ?? customerData,
             customer: customerData ?? buyerData,
+            invoiceUrl,
+            viewUrl: invoiceLinks.viewUrl,
+            payUrl: invoiceLinks.payUrl,
+            pdfUrl,
+            links: invoiceLinks,
+            payment: {
+              ...(existingPaymentData ?? {}),
+              hostedInvoiceUrl:
+                paymentDelivery.payUrl ||
+                (typeof existingPaymentData?.hostedInvoiceUrl === "string"
+                  ? existingPaymentData.hostedInvoiceUrl
+                  : null),
+            },
+            paymentDelivery,
           };
           const recipientCompanyName =
             typeof customerData?.name === "string" ? customerData.name : undefined;
@@ -538,9 +603,9 @@ export const sendInvoiceEmail = onCall<SendInvoiceEmailPayload, Promise<{ sent: 
               company: recipientCompanyName,
             },
             links: {
-              viewUrl: invoiceUrl,
-              payUrl: invoiceUrl,
-              pdfUrl,
+              viewUrl: invoiceLinks.viewUrl,
+              payUrl: invoiceLinks.payUrl,
+              pdfUrl: invoiceLinks.pdfUrl,
             },
           });
 
@@ -593,7 +658,10 @@ export const sendInvoiceEmail = onCall<SendInvoiceEmailPayload, Promise<{ sent: 
           });
 
           subject = rendered.subject || `Invoice #${invoiceNumber}`;
-          html = rendered.html;
+          html = injectSmartPaymentInstructionsBlocks({
+            html: rendered.html,
+            paymentDelivery,
+          });
           text = rendered.preheader || `Invoice #${invoiceNumber} - Amount: ${formattedAmount}`;
         } catch (error) {
           const details =
@@ -632,7 +700,7 @@ export const sendInvoiceEmail = onCall<SendInvoiceEmailPayload, Promise<{ sent: 
 
         if (brandingConfig) {
           // Use branded email template
-          subject = `Invoice #${invoiceNumber} - Payment Due`;
+          subject = `Invoice #${invoiceNumber} - Payment`;
           html = generateInvoiceEmailHTML(
             {
               invoiceNumber,
@@ -644,10 +712,23 @@ export const sendInvoiceEmail = onCall<SendInvoiceEmailPayload, Promise<{ sent: 
             },
             brandingConfig
           );
+          if (paymentDelivery.status === "paid") {
+            html += `<p style="margin-top:16px;color:#16a34a;font-weight:600;">This invoice is already paid.</p>`;
+          } else if (paymentDelivery.status === "cancelled") {
+            html += `<p style="margin-top:16px;color:#b91c1c;font-weight:600;">This invoice is cancelled and cannot be paid.</p>`;
+          } else if (paymentDelivery.status === "payable_fallback") {
+            html += `
+              <div style="margin-top:16px;padding:12px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc;">
+                <p style="margin:0 0 8px 0;font-weight:600;color:#0f172a;">Fallback payment instructions</p>
+                <p style="margin:0 0 8px 0;color:#334155;white-space:pre-line;">${paymentDelivery.fallbackInstructions}</p>
+                <p style="margin:0;color:#334155;"><strong>Payment reference:</strong> ${paymentDelivery.reference}</p>
+              </div>
+            `;
+          }
           text = `Invoice #${invoiceNumber} - Amount: ${formattedAmount}, Due: ${formattedDueDate}`;
         } else {
           // Fallback to non-branded template
-          subject = `Invoice #${invoiceNumber} - Payment Due`;
+          subject = `Invoice #${invoiceNumber} - Payment`;
           html = `
             <h1>Invoice #${invoiceNumber}</h1>
             <p>Hello ${customerName},</p>
@@ -658,11 +739,29 @@ export const sendInvoiceEmail = onCall<SendInvoiceEmailPayload, Promise<{ sent: 
               <p><strong>Due Date:</strong> ${formattedDueDate}</p>
               ${description ? `<p><strong>Description:</strong> ${description}</p>` : ""}
             </div>
+            ${paymentDelivery.status === "payable_online" && paymentDelivery.payUrl
+              ? `<p><a href="${paymentDelivery.payUrl}">Pay now</a></p>`
+              : ""}
             ${invoiceUrl ? `<p><a href="${invoiceUrl}">View Invoice</a></p>` : ""}
+            ${paymentDelivery.status === "payable_fallback"
+              ? `<p><strong>Fallback payment instructions:</strong><br/>${paymentDelivery.fallbackInstructions.replace(/\n/g, "<br/>")}<br/><strong>Payment reference:</strong> ${paymentDelivery.reference}</p>`
+              : ""}
+            ${paymentDelivery.status === "paid"
+              ? `<p><strong>This invoice is already paid.</strong></p>`
+              : ""}
+            ${paymentDelivery.status === "cancelled"
+              ? `<p><strong>This invoice is cancelled and cannot be paid.</strong></p>`
+              : ""}
           `;
           text = `Invoice #${invoiceNumber} - Amount: ${formattedAmount}, Due: ${formattedDueDate}`;
         }
       }
+
+      // Ensure Smart Payment Instructions markers are rendered even for cached previews.
+      html = injectSmartPaymentInstructionsBlocks({
+        html,
+        paymentDelivery,
+      });
 
       // Always use verified Resend email address to avoid domain verification issues
       // Use organization name for branding in the from name
@@ -802,6 +901,13 @@ export const sendInvoiceEmail = onCall<SendInvoiceEmailPayload, Promise<{ sent: 
 
       return {
         sent: result.success,
+        paymentDelivery: {
+          status: paymentDelivery.status,
+          hasOnlineLink: paymentDelivery.hasOnlineLink,
+          warnings: paymentDelivery.warnings,
+          reference: paymentDelivery.reference,
+          usedFallback: paymentDelivery.usedFallback,
+        },
       };
     } catch (error) {
       logger.error("Error sending invoice email", {

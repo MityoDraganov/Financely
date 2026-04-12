@@ -9,12 +9,13 @@ interface ProductCatalogItem {
   name: string;
   description?: string;
   price: number;
-  currency: string;
+  currency?: string;
   category?: string;
 }
 
 interface ProposalGenerationOptions {
   targetCurrency?: string;
+  organizationBaseCurrency?: string;
   conversionPairs?: CurrencyConversionPair[];
 }
 
@@ -40,8 +41,13 @@ export class ProposalGenerationService {
     options: ProposalGenerationOptions = {},
   ): Promise<ProposalData> {
     const leadData = lead.data || lead;
+    const sourceCurrency = this.resolveSourceCurrency(
+      options.organizationBaseCurrency,
+      products,
+    );
     const targetCurrency = this.resolveTargetCurrency(
       options.targetCurrency,
+      sourceCurrency,
       products,
     );
     
@@ -99,6 +105,7 @@ export class ProposalGenerationService {
       const { validatedItems, incompleteItems, isIncomplete } = await this.validateItemsAgainstProducts(
         result.items,
         products || [],
+        sourceCurrency,
         targetCurrency,
         options.conversionPairs || [],
       );
@@ -158,6 +165,7 @@ export class ProposalGenerationService {
   private async validateItemsAgainstProducts(
     aiItems: Array<{ description: string; qty: number; unitPrice: number; taxPct?: number }>,
     products: ProductCatalogItem[],
+    sourceCurrency: string,
     targetCurrency: string,
     conversionPairs: CurrencyConversionPair[],
   ): Promise<{
@@ -189,14 +197,14 @@ export class ProposalGenerationService {
         try {
           convertedUnitPrice = await convertCurrencyAmount(
             matchedProduct.price,
-            matchedProduct.currency,
+            sourceCurrency,
             targetCurrency,
             { manualPairs: conversionPairs },
           );
         } catch {
           incompleteItems.push({
             description: matchedProduct.name,
-            reason: `Unable to convert "${matchedProduct.name}" from ${matchedProduct.currency} to ${targetCurrency}.`,
+            reason: `Unable to convert "${matchedProduct.name}" from ${sourceCurrency} to ${targetCurrency}.`,
             suggestedProductId: matchedProduct.id,
           });
           continue;
@@ -342,13 +350,12 @@ export class ProposalGenerationService {
     const hasProducts = products && products.length > 0;
     const productsSection = hasProducts 
       ? `\n\nCRITICAL: Available Products/Services (YOU MUST ONLY USE THESE):
-${products.map((p, idx) => `${idx + 1}. Name: "${p.name}"${p.description ? ` | Description: ${p.description}` : ""} | Price: ${p.price} ${p.currency}${p.category ? ` | Category: ${p.category}` : ""}`).join("\n")}
+${products.map((p, idx) => `${idx + 1}. Name: "${p.name}"${p.description ? ` | Description: ${p.description}` : ""} | Price: ${p.price} ${p.currency || targetCurrency || "USD"}${p.category ? ` | Category: ${p.category}` : ""}`).join("\n")}
 
 STRICT RULES:
 - You MUST ONLY create proposal items that match the available products listed above
 - Use the EXACT product name from the list above
 - Use the EXACT price from the product list
-- Use the EXACT currency from the product list
 - Use a SINGLE proposal currency for the whole proposal
 - DO NOT create items for products that are NOT in the list above
 - DO NOT invent or hallucinate products that don't exist
@@ -380,13 +387,41 @@ Respond with a JSON object containing the proposal data.`;
 
   private resolveTargetCurrency(
     preferredCurrency: string | undefined,
+    sourceCurrency: string,
     products?: ProductCatalogItem[],
   ): string {
     if (typeof preferredCurrency === "string" && preferredCurrency.trim().length > 0) {
       return preferredCurrency.trim().toUpperCase();
     }
 
+    if (sourceCurrency) {
+      return sourceCurrency;
+    }
+
     const firstProductCurrency = products?.find((product) => typeof product.currency === "string" && product.currency.trim().length > 0)?.currency;
+    if (firstProductCurrency) {
+      return firstProductCurrency.trim().toUpperCase();
+    }
+
+    return "USD";
+  }
+
+  private resolveSourceCurrency(
+    organizationBaseCurrency: string | undefined,
+    products?: ProductCatalogItem[],
+  ): string {
+    if (
+      typeof organizationBaseCurrency === "string" &&
+      organizationBaseCurrency.trim().length > 0
+    ) {
+      return organizationBaseCurrency.trim().toUpperCase();
+    }
+
+    const firstProductCurrency = products?.find(
+      (product) =>
+        typeof product.currency === "string" &&
+        product.currency.trim().length > 0,
+    )?.currency;
     if (firstProductCurrency) {
       return firstProductCurrency.trim().toUpperCase();
     }

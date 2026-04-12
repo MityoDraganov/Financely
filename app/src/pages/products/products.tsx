@@ -8,6 +8,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useProductsByOrg, useDeleteProduct } from "@/hooks";
 import { useCreateProduct } from "@/hooks/service-hooks/use-product-functions";
 import { useOrganizationContext } from "@/hooks/use-organization-context";
@@ -31,6 +41,7 @@ export default function ProductsPage() {
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [didTriggerPublicPageBackfill, setDidTriggerPublicPageBackfill] = useState(false);
   const [isRegeneratingPublicPages, setIsRegeneratingPublicPages] = useState(false);
+  const [productToDelete, setProductToDelete] = useState<{ id: string; name: string } | null>(null);
 
   const { data: products = [], isLoading, error } = useProductsByOrg(currentOrganization?.id);
   console.log(error);
@@ -148,14 +159,12 @@ export default function ProductsPage() {
     }
   };
 
-  const handleDeleteProduct = async (id: string) => {
-    if (!confirm(t('products.messages.deleteConfirm'))) {
-      return;
-    }
-
+  const handleDeleteProduct = async () => {
+    if (!productToDelete) return;
     try {
-      await deleteProductMutation.mutateAsync(id);
+      await deleteProductMutation.mutateAsync(productToDelete.id);
       toast.success(t('products.messages.productDeleted'));
+      setProductToDelete(null);
     } catch (error) {
       toast.error(t('products.messages.deleteFailed', { error: error instanceof Error ? error.message : "Unknown error" }));
     }
@@ -441,7 +450,7 @@ export default function ProductsPage() {
                                 variant="ghost"
                                 size="sm"
                                 title={t('products.actions.deleteProduct')}
-                                onClick={() => handleDeleteProduct(product.id)}
+                                onClick={() => setProductToDelete({ id: product.id, name: product.name })}
                                 disabled={deleteProductMutation.isPending}
                                 className="h-8 w-8 p-0 shrink-0"
                               >
@@ -573,7 +582,7 @@ export default function ProductsPage() {
                           variant="ghost"
                           size="default"
                           className="h-11 flex-1 min-w-[80px]"
-                          onClick={() => handleDeleteProduct(product.id)}
+                          onClick={() => setProductToDelete({ id: product.id, name: product.name })}
                           disabled={deleteProductMutation.isPending}
                         >
                           <Trash2 className="h-4 w-4 mr-2" />
@@ -593,6 +602,40 @@ export default function ProductsPage() {
         onOpenChange={setShowExportDialog}
         defaultEntityTypes={["products"]}
       />
+
+      <AlertDialog
+        open={!!productToDelete}
+        onOpenChange={(open) => {
+          if (!open && !deleteProductMutation.isPending) {
+            setProductToDelete(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("products.actions.deleteProduct")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {productToDelete?.name
+                ? `${t("products.messages.deleteConfirm")} "${productToDelete.name}".`
+                : t("products.messages.deleteConfirm")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteProductMutation.isPending}>
+              {t("products.actions.cancel")}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteProductMutation.isPending}
+              onClick={handleDeleteProduct}
+            >
+              {deleteProductMutation.isPending
+                ? t("products.actions.deleting", "Deleting...")
+                : t("products.actions.delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

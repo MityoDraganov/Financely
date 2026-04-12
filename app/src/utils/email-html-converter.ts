@@ -11,6 +11,13 @@ const styleObjectToInlineCss = (
 		.map(([key, value]) => `${toKebabCaseCssProperty(key)}:${value}`)
 		.join("; ");
 
+const escapeHtmlAttribute = (value: string): string =>
+	value
+		.replace(/&/g, "&amp;")
+		.replace(/"/g, "&quot;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;");
+
 /**
  * Convert EmailTemplate blocks to HTML
  */
@@ -343,6 +350,18 @@ function blockToHTML(
 			html += `${indentStr}</table>\n`;
 			
 			return html;
+		}
+		case "paymentInstructions": {
+			const smartBlock = block as Extract<
+				EmailTemplateBlock,
+				{ type: "paymentInstructions" }
+			>;
+			const ctaLabel = escapeHtmlAttribute(smartBlock.ctaLabel || "Pay now");
+			const fallbackMode = escapeHtmlAttribute(
+				smartBlock.fallbackMode || "bank_transfer",
+			);
+			const showReference = smartBlock.showReference === false ? "0" : "1";
+			return `${indentStr}<div data-smart-payment-instructions="1" data-cta-label="${ctaLabel}" data-fallback-mode="${fallbackMode}" data-show-reference="${showReference}"></div>\n`;
 		}
 		default:
 			return `${indentStr}<!-- Unknown block type: ${block.type} -->\n`;
@@ -932,6 +951,24 @@ function elementToBlock(
 		}
 		return childBlocks;
 	};
+
+	if (tagName === "div" && element.getAttribute("data-smart-payment-instructions") === "1") {
+		const ctaLabel = element.getAttribute("data-cta-label") || "Pay now";
+		const fallbackModeRaw = element.getAttribute("data-fallback-mode") || "bank_transfer";
+		const fallbackMode = fallbackModeRaw === "minimal" ? "minimal" : "bank_transfer";
+		const showReferenceRaw = element.getAttribute("data-show-reference");
+		const showReference = showReferenceRaw == null
+			? true
+			: ["1", "true", "yes", "on"].includes(showReferenceRaw.trim().toLowerCase());
+		return {
+			id: crypto.randomUUID(),
+			type: "paymentInstructions",
+			section: "body",
+			ctaLabel,
+			fallbackMode,
+			showReference,
+		};
+	}
 
 	// Handle text elements - extract text content properly, handling nested elements
 	if (tagName === "p" || tagName === "strong" || tagName === "b" || tagName === "em" || tagName === "i" || 

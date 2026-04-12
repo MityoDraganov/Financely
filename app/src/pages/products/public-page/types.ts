@@ -39,6 +39,7 @@ export type PublicOrganizationPayload = {
   id: string;
   name: string;
   orgSlug: string;
+  baseCurrency: string;
   logoUrl?: string;
   locale: string;
   multiCurrency?: PublicMultiCurrencyConfig;

@@ -227,6 +227,65 @@ const getNestedValue = (source: unknown, path: string): unknown => {
 
 const getInvoiceValueByPath = (invoice: Invoice | undefined, path: string): unknown => {
 	if (!invoice || !path) return undefined;
+	const normalizedPath = path.trim().toLowerCase();
+	const hostedInvoiceUrl = invoice.payment?.hostedInvoiceUrl?.trim();
+	const fallbackInvoiceUrl = hostedInvoiceUrl || invoice.pdfUrl;
+	const normalizedStatus = normalizeInvoiceStatus(invoice.status);
+	const paymentStatus =
+		normalizedStatus === INVOICE_STATUSES.PAID
+			? "paid"
+			: normalizedStatus === INVOICE_STATUSES.CANCELLED
+				? "cancelled"
+				: hostedInvoiceUrl
+					? "payable_online"
+					: "payable_fallback";
+	const paymentReference =
+		getRecordFieldAsString(
+			getNestedValue(invoice.data, "reference") ??
+				getNestedValue(invoice.data, "invoiceNumber") ??
+				getNestedValue(invoice.data, "number"),
+		) || invoice.id;
+
+	if (normalizedPath === "paymentdelivery.status") {
+		return paymentStatus;
+	}
+	if (normalizedPath === "paymentdelivery.hasonlinelink") {
+		return Boolean(hostedInvoiceUrl);
+	}
+	if (normalizedPath === "paymentdelivery.reference") {
+		return paymentReference;
+	}
+	if (normalizedPath === "paymentdelivery.payurl") {
+		return hostedInvoiceUrl || "";
+	}
+	if (normalizedPath === "paymentdelivery.viewurl") {
+		return fallbackInvoiceUrl;
+	}
+	if (normalizedPath === "paymentdelivery.pdfurl") {
+		return invoice.pdfUrl;
+	}
+	if (normalizedPath === "paymentdelivery.warningtext") {
+		return paymentStatus === "payable_fallback"
+			? "Online payment link is unavailable. Fallback payment instructions will be used."
+			: "";
+	}
+	if (normalizedPath === "paymentdelivery.fallbackinstructions") {
+		return "Online payment is unavailable. Use the provided bank transfer details and payment reference.";
+	}
+
+	if (
+		normalizedPath === "payurl" ||
+		normalizedPath === "viewurl" ||
+		normalizedPath === "invoiceurl" ||
+		normalizedPath === "links.payurl" ||
+		normalizedPath === "links.viewurl" ||
+		normalizedPath === "payment.hostedinvoiceurl"
+	) {
+		return fallbackInvoiceUrl;
+	}
+	if (normalizedPath === "links.pdfurl") {
+		return invoice.pdfUrl;
+	}
 
 	const candidatePaths = (() => {
 		const normalized = path.trim();

@@ -7,8 +7,10 @@ import {
   Organization,
   OrganizationData,
 } from "../core";
+import { removeUndefinedValues } from "../utils/remove-undefined-values";
 import { loggerService } from "./logger-service";
 import { isOrganizationConnectReady } from "./stripe-connect-payments";
+import { getOrganizationBaseCurrency } from "../utils/organization-currency-policy";
 
 export interface StripeInvoiceSyncInput {
   amountMinor: number;
@@ -69,6 +71,7 @@ const ZERO_DECIMAL_CURRENCIES = new Set([
   "xof",
   "xpf",
 ]);
+const STRIPE_CURRENCY_CODE_PATTERN = /^[a-z]{3}$/;
 
 const asRecord = (value: unknown): Record<string, unknown> | undefined => {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -147,9 +150,19 @@ export function buildStripeInvoiceSyncInput(params: {
   const amount =
     pickNumber(data, ["total", "totals.grandTotal", "amountDue", "invoice.total"]) ??
     0;
-  const currency =
+  const resolvedCurrency =
     pickString(data, ["currency", "totals.currency", "invoice.currency"]) ??
-    (organization?.settings?.defaultCurrency || "USD");
+    getOrganizationBaseCurrency(
+      organization
+        ? ({ settings: organization.settings } as { settings?: { defaultCurrency?: string; currency?: string } })
+        : undefined,
+    );
+  const currency = resolvedCurrency.trim().toLowerCase();
+  if (!STRIPE_CURRENCY_CODE_PATTERN.test(currency)) {
+    throw new Error(
+      `Invoice currency is missing or invalid: ${resolvedCurrency || "unknown"}`
+    );
+  }
 
   const amountMinor = toMinorUnits(amount, currency);
   if (!Number.isFinite(amountMinor) || amountMinor <= 0) {
@@ -188,18 +201,14 @@ export function buildStripeDraftInvoiceCreateParams(params: {
   syncInput: StripeInvoiceSyncInput;
 }): Stripe.InvoiceCreateParams {
   const { customerId, syncInput } = params;
-  const dueDateInFuture =
-    syncInput.dueDate &&
-    syncInput.dueDate.getTime() > Date.now();
-
   return {
     customer: customerId,
-    collection_method: "send_invoice",
-    ...(dueDateInFuture
-      ? { due_date: Math.floor(syncInput.dueDate!.getTime() / 1000) }
-      : { days_until_due: 30 }),
+    currency: syncInput.currency,
+    // Never let Stripe send invoices directly; app handles delivery.
+    collection_method: "charge_automatically",
     payment_settings: {
-      payment_method_types: ["card", "customer_balance"],
+      // customer_balance is not allowed with charge_automatically on invoices.
+      payment_method_types: ["card"],
     },
     auto_advance: false,
     metadata: syncInput.metadata,
@@ -252,8 +261,9 @@ const updateInvoicePaymentInFirestore = async (
   invoiceId: string,
   payment: InvoicePayment
 ): Promise<void> => {
+  const sanitizedPayment = removeUndefinedValues(payment);
   await getFirestore().collection("invoices").doc(invoiceId).update({
-    payment,
+    payment: sanitizedPayment,
   });
 };
 

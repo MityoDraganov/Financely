@@ -16,6 +16,11 @@ import {
   normalizePublicOrgSlug,
   resolveUniqueOrganizationSlug,
 } from "../services/organization-public-slug-service";
+import {
+  convertAmountWithOrganizationRates,
+  getOrganizationBaseCurrency,
+  normalizeCurrencyCode,
+} from "../utils/organization-currency-policy";
 
 /**
  * Triggered when an organization document is updated.
@@ -45,9 +50,18 @@ export const onOrganizationUpdated = onDocumentUpdated(
       const beforePublicPages = (before?.settings as {
         publicPages?: { orgSlug?: string; orgSlugAliases?: string[]; domainPreference?: "custom-first" | "app-only" };
       } | undefined)?.publicPages;
-      const afterPublicPages = (after.settings as {
+      const beforeSettings = (before?.settings as Record<string, unknown> | undefined) || {};
+      const afterSettings = (after.settings as Record<string, unknown> | undefined) || {};
+      const afterPublicPages = (afterSettings as {
         publicPages?: { orgSlug?: string; orgSlugAliases?: string[]; domainPreference?: "custom-first" | "app-only" };
       } | undefined)?.publicPages;
+      const beforeBaseCurrency = getOrganizationBaseCurrency({
+        settings: beforeSettings as any,
+      });
+      const afterBaseCurrency = getOrganizationBaseCurrency({
+        settings: afterSettings as any,
+      });
+      const didBaseCurrencyChange = beforeBaseCurrency !== afterBaseCurrency;
 
       const afterName = (after.name as string | undefined) || "";
       const previousSlug = normalizePublicOrgSlug(
@@ -86,7 +100,7 @@ export const onOrganizationUpdated = onDocumentUpdated(
 
       if (JSON.stringify(normalizedPublicPages) !== JSON.stringify(existingNormalized)) {
         const nextSettings = {
-          ...(after.settings as Record<string, unknown>),
+          ...(afterSettings as Record<string, unknown>),
           publicPages: normalizedPublicPages,
         };
         await organizationRepository.update({
@@ -128,6 +142,58 @@ export const onOrganizationUpdated = onDocumentUpdated(
             }),
           ),
         );
+      }
+
+      if (didBaseCurrencyChange) {
+        const productRepository = getProductRepository(databaseService);
+        const orgProducts = await productRepository.getAll({
+          queryConstraints: [
+            { field: "organizationId", operator: "==", value: organizationId },
+          ],
+        });
+
+        for (const product of orgProducts) {
+          const productCurrency =
+            normalizeCurrencyCode(product.currency) || beforeBaseCurrency;
+          if (!Number.isFinite(product.price)) {
+            continue;
+          }
+
+          let nextPrice = product.price;
+          if (productCurrency !== afterBaseCurrency) {
+            try {
+              nextPrice = await convertAmountWithOrganizationRates({
+                amount: product.price,
+                fromCurrency: productCurrency,
+                toCurrency: afterBaseCurrency,
+                organizationOrSettings: { settings: afterSettings as any },
+              });
+            } catch (error) {
+              logger.error("Failed converting product price during org currency update", {
+                organizationId,
+                productId: product.id,
+                productCurrency,
+                nextCurrency: afterBaseCurrency,
+                error: error instanceof Error ? error.message : "Unknown error",
+              });
+              continue;
+            }
+          }
+
+          const roundedNextPrice = Math.round((nextPrice + Number.EPSILON) * 100) / 100;
+          const shouldUpdate =
+            product.currency !== afterBaseCurrency ||
+            roundedNextPrice !== product.price;
+          if (!shouldUpdate) continue;
+
+          await productRepository.update({
+            id: product.id,
+            data: {
+              currency: afterBaseCurrency,
+              price: roundedNextPrice,
+            },
+          });
+        }
       }
 
       const cache = getBrandContextCache();

@@ -1729,6 +1729,69 @@ function BlockPreview({
         </div>
       );
     }
+		case "paymentInstructions": {
+			const paymentBlock = block as Extract<
+				EmailTemplateBlock,
+				{ type: "paymentInstructions" }
+			>;
+			const spacing = (paymentBlock.spacing || {}) as EmailSpacing;
+			const border = (paymentBlock.border || {}) as EmailBorder;
+
+			return (
+				<div
+					style={{
+						paddingTop: spacing.paddingTop
+							? `${spacing.paddingTop}px`
+							: undefined,
+						paddingRight: spacing.paddingRight
+							? `${spacing.paddingRight}px`
+							: undefined,
+						paddingBottom: spacing.paddingBottom
+							? `${spacing.paddingBottom}px`
+							: undefined,
+						paddingLeft: spacing.paddingLeft
+							? `${spacing.paddingLeft}px`
+							: undefined,
+						marginTop: spacing.marginTop
+							? `${spacing.marginTop}px`
+							: undefined,
+						marginRight: spacing.marginRight
+							? `${spacing.marginRight}px`
+							: undefined,
+						marginBottom: spacing.marginBottom
+							? `${spacing.marginBottom}px`
+							: undefined,
+						marginLeft: spacing.marginLeft
+							? `${spacing.marginLeft}px`
+							: undefined,
+						backgroundColor: paymentBlock.backgroundColor || "#f8fafc",
+						borderWidth: border.borderWidth
+							? `${border.borderWidth}px`
+							: "1px",
+						borderColor: border.borderColor || "#e2e8f0",
+						borderStyle: border.borderStyle || "solid",
+						borderRadius: border.borderRadius
+							? `${border.borderRadius}px`
+							: "10px",
+					}}
+				>
+					<div className="text-xs font-semibold text-slate-900 mb-2">
+						Smart Payment Instructions
+					</div>
+					<div className="text-xs text-slate-700 mb-2">
+						Status-aware block for online payment, fallback instructions, and paid/cancelled messaging.
+					</div>
+					<div className="inline-flex items-center rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white">
+						{resolveDynamicValue(paymentBlock.ctaLabel || "Pay now")}
+					</div>
+					{paymentBlock.showReference && (
+						<div className="mt-2 text-xs text-slate-600">
+							Reference: INV-1001
+						</div>
+					)}
+				</div>
+			);
+		}
 		case "rawHtml": {
 			const rawHtmlBlock = block as Extract<
 				EmailTemplateBlock,

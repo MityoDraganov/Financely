@@ -35,6 +35,12 @@ type InvoiceEmailPreview = {
     toEmail: string;
     expiresAt: string;
     emailTemplateId: string;
+    paymentDelivery: {
+        status: "payable_online" | "payable_fallback" | "paid" | "cancelled";
+        hasOnlineLink: boolean;
+        warnings: string[];
+        reference: string;
+    };
 };
 
 export default function InvoiceDetailPage() {
@@ -51,6 +57,7 @@ export default function InvoiceDetailPage() {
     const attemptedPreviewInvoiceIdRef = useRef<string | null>(null);
     const attemptedCachedPreviewRecoveryRef = useRef<string | null>(null);
     const previewSourceRef = useRef<"cached" | "rendered">("rendered");
+    const emailPreviewDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const { data: currentOrg } = useCurrentOrganization();
     const updateInvoice = useUpdateInvoice();
@@ -188,6 +195,22 @@ export default function InvoiceDetailPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [invoice?.id, selectedEmailTemplateId]);
 
+    // Auto-regenerate preview when email changes (debounced).
+    useEffect(() => {
+        const trimmed = email.trim();
+        if (!trimmed || !invoice || !selectedEmailTemplateId) return;
+        if (emailPreview?.toEmail.trim().toLowerCase() === trimmed.toLowerCase() && !previewIsExpired) return;
+
+        if (emailPreviewDebounceRef.current) clearTimeout(emailPreviewDebounceRef.current);
+        emailPreviewDebounceRef.current = setTimeout(() => {
+            handleGenerateEmailPreview(trimmed, {});
+        }, 700);
+        return () => {
+            if (emailPreviewDebounceRef.current) clearTimeout(emailPreviewDebounceRef.current);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [email]);
+
     const previewIsExpired = useMemo(() => {
         if (!emailPreview?.expiresAt) return true;
         const expiresAtMs = Date.parse(emailPreview.expiresAt);
@@ -209,8 +232,19 @@ export default function InvoiceDetailPage() {
             emailPreview &&
             previewMatchesSelection &&
             !previewIsExpired &&
-            !sendEmail.isPending,
+            !sendEmail.isPending &&
+            !previewEmail.isPending,
     );
+    const paymentDelivery = emailPreview?.paymentDelivery;
+    const paymentDeliveryLabel = paymentDelivery
+        ? paymentDelivery.status === "payable_online"
+            ? t("invoiceDetail.email.paymentDelivery.onlineReady", "Online link ready")
+            : paymentDelivery.status === "payable_fallback"
+                ? t("invoiceDetail.email.paymentDelivery.fallbackOnly", "Fallback instructions only")
+                : paymentDelivery.status === "paid"
+                    ? t("invoiceDetail.email.paymentDelivery.paid", "Invoice already paid")
+                    : t("invoiceDetail.email.paymentDelivery.cancelled", "Invoice cancelled")
+        : null;
 
     const currentStatus = invoice ? normalizeInvoiceStatus(invoice.status) : INVOICE_STATUSES.UNSENT;
     const stripePayment = invoice?.payment?.provider === "stripe" ? invoice.payment : undefined;
@@ -233,9 +267,17 @@ export default function InvoiceDetailPage() {
                 previewId: emailPreview.previewId,
             },
             {
-                onSuccess: () => {
-                    toast.success(t('invoiceDetail.email.sent', { email }));
-                    setEmail("");
+                onSuccess: (result) => {
+                    if (result?.paymentDelivery?.usedFallback) {
+                        toast.warning(
+                            t(
+                                "invoiceDetail.email.sentWithFallback",
+                                "Invoice email sent with fallback payment instructions (no online payment link).",
+                            ),
+                        );
+                    } else {
+                        toast.success(t('invoiceDetail.email.sent', { email }));
+                    }
                     setEmailPreview(null);
                 },
                 onError: (error) => {
@@ -600,19 +642,56 @@ export default function InvoiceDetailPage() {
                             </div>
                             <div className="space-y-2">
                                 <Label>{t('invoiceDetail.email.recipientLabel', 'Recipient Email')}</Label>
+                                {paymentDeliveryLabel && (
+                                    <div
+                                        className={[
+                                            "rounded-md border px-3 py-2 text-xs",
+                                            paymentDelivery?.status === "payable_online"
+                                                ? "border-emerald-300 bg-emerald-50 text-emerald-900"
+                                                : paymentDelivery?.status === "payable_fallback"
+                                                    ? "border-amber-300 bg-amber-50 text-amber-900"
+                                                    : paymentDelivery?.status === "paid"
+                                                        ? "border-sky-300 bg-sky-50 text-sky-900"
+                                                        : "border-rose-300 bg-rose-50 text-rose-900",
+                                        ].join(" ")}
+                                    >
+                                        <p className="font-medium">{paymentDeliveryLabel}</p>
+                                        {paymentDelivery?.status === "payable_fallback" && (
+                                            <p className="mt-1">
+                                                {t(
+                                                    "invoiceDetail.email.paymentDelivery.fallbackNotice",
+                                                    "Email can still be sent. Recipient will receive fallback payment instructions.",
+                                                )}
+                                            </p>
+                                        )}
+                                        {paymentDelivery?.reference && (
+                                            <p className="mt-1">
+                                                {t("invoiceDetail.email.paymentDelivery.reference", "Payment reference")}: {paymentDelivery.reference}
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
                                 <div className="flex items-center gap-2">
                                     <Input
                                         placeholder={t('invoiceDetail.email.placeholder')}
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
                                     />
-                                    <Button 
-                                        className="btn-primary" 
-                                        onClick={handleSendEmail} 
+                                    <Button
+                                        className="btn-primary"
+                                        onClick={handleSendEmail}
                                         disabled={!canSendEmail}
                                     >
-                                        <Send className="mr-2 h-4 w-4" /> 
-                                        {sendEmail.isPending ? t('invoiceDetail.email.sending') : t('invoiceDetail.email.send')}
+                                        {(sendEmail.isPending || previewEmail.isPending) ? (
+                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        ) : (
+                                            <Send className="mr-2 h-4 w-4" />
+                                        )}
+                                        {sendEmail.isPending
+                                            ? t('invoiceDetail.email.sending')
+                                            : previewEmail.isPending
+                                                ? t('invoiceDetail.email.previewGenerating', 'Generating...')
+                                                : t('invoiceDetail.email.send')}
                                     </Button>
                                 </div>
                             </div>
@@ -682,17 +761,9 @@ export default function InvoiceDetailPage() {
                                             {t("invoiceDetail.email.previewRecipient", "Preview for")}:{" "}
                                             <span className="font-medium text-foreground">{emailPreview.toEmail}</span>
                                         </div>
-                                        {!previewMatchesSelection && (
-                                            <p className="text-xs text-amber-600">
-                                                {t(
-                                                    "invoiceDetail.email.previewRecipientMismatch",
-                                                    "Recipient changed after preview. Click the eye icon to regenerate preview before sending.",
-                                                )}
-                                            </p>
-                                        )}
                                         {previewIsExpired && (
                                             <p className="text-xs text-amber-600">
-                                                {t("invoiceDetail.email.previewExpired", "Preview expired. Click the eye icon to regenerate preview before sending.")}
+                                                {t("invoiceDetail.email.previewExpired", "Preview expired. Regenerating...")}
                                             </p>
                                         )}
                                     </div>

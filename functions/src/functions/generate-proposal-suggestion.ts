@@ -9,6 +9,11 @@ import { getAIService } from "../services/ai/ai-service";
 import { GeminiProvider } from "../services/ai/gemini-provider";
 import { getProposalGenerationService } from "../services/ai/proposal-generation-service";
 import { Lead } from "../core";
+import {
+  getOrganizationBaseCurrency,
+  getOrganizationCurrencyRateOverrides,
+  toManualCurrencyPairs,
+} from "../utils/organization-currency-policy";
 
 const geminiApiKey = defineSecret("GEMINI_API_KEY");
 
@@ -117,12 +122,16 @@ export const generateProposalSuggestion = onCall<GenerateProposalSuggestionPaylo
 
       // Generate proposal suggestion
       const proposalGenerationService = getProposalGenerationService();
+      const organizationBaseCurrency = getOrganizationBaseCurrency(organization);
+      const conversionPairs = toManualCurrencyPairs(
+        getOrganizationCurrencyRateOverrides(organization),
+      );
       const productsForContext = products.map((p) => ({
         id: p.id,
         name: p.name,
         description: p.description,
         price: p.price,
-        currency: p.currency,
+        currency: organizationBaseCurrency,
         category: p.category,
       }));
       const proposalData = await proposalGenerationService.generateProposalSuggestion(
@@ -130,8 +139,9 @@ export const generateProposalSuggestion = onCall<GenerateProposalSuggestionPaylo
         organization.name,
         productsForContext,
         {
-          targetCurrency: organization.settings?.defaultCurrency || "USD",
-          conversionPairs: organization.settings?.multiCurrency?.pairs || [],
+          targetCurrency: organizationBaseCurrency,
+          organizationBaseCurrency,
+          conversionPairs,
         },
       );
 
@@ -159,4 +169,3 @@ export const generateProposalSuggestion = onCall<GenerateProposalSuggestionPaylo
     }
   },
 );
-

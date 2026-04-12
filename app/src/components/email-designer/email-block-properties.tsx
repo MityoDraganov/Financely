@@ -1199,7 +1199,7 @@ export function EmailBlockProperties({
 
   const renderSpacingControls = () => {
     // Elements that support spacing
-    const supportsSpacing = ["subject", "preheader", "text", "button", "divider", "image", "logo", "navigation", "footerText", "socialLinks", "unsubscribe", "spacer"].includes(block.type);
+    const supportsSpacing = ["subject", "preheader", "text", "button", "divider", "image", "logo", "navigation", "footerText", "socialLinks", "unsubscribe", "spacer", "paymentInstructions"].includes(block.type);
     const spacing = supportsSpacing
       ? (block.spacing || getDefaultSpacing())
       : null;
@@ -1351,7 +1351,7 @@ export function EmailBlockProperties({
 
   const renderBorderControls = () => {
     // Elements that support borders
-    const supportsBorder = ["subject", "preheader", "text", "button", "image", "logo", "navigation", "footerText", "socialLinks", "divider"].includes(block.type);
+    const supportsBorder = ["subject", "preheader", "text", "button", "image", "logo", "navigation", "footerText", "socialLinks", "divider", "paymentInstructions"].includes(block.type);
     if (!supportsBorder) return null;
     
     // Type guard to ensure border exists
@@ -1451,7 +1451,7 @@ export function EmailBlockProperties({
 
   const renderBackgroundColorControls = () => {
     // Elements that support background color
-    const supportsBackground = ["subject", "preheader", "text", "button", "image", "logo", "navigation", "footerText", "socialLinks", "unsubscribe", "spacer", "divider"].includes(block.type);
+    const supportsBackground = ["subject", "preheader", "text", "button", "image", "logo", "navigation", "footerText", "socialLinks", "unsubscribe", "spacer", "divider", "paymentInstructions"].includes(block.type);
     
     if (!supportsBackground) return null;
 
@@ -1480,7 +1480,9 @@ export function EmailBlockProperties({
     <Card className="h-full border-none bg-card/80 shadow-none flex flex-col py-0">
       <CardHeader className="flex flex-row items-center justify-between gap-2 shrink-0 px-6 py-3">
         <CardTitle className="text-lg font-semibold">
-          {t(`emailDesigner.blocks.${block.type}` as const)}
+          {block.type === "paymentInstructions"
+            ? t("emailDesigner.blocks.paymentInstructions", "Payment Instructions")
+            : t(`emailDesigner.blocks.${block.type}` as const)}
         </CardTitle>
         <Button variant="destructive" size="sm" onClick={() => onDelete(block.id)}>
           {t("emailDesigner.properties.delete")}
@@ -2387,6 +2389,72 @@ export function EmailBlockProperties({
                 </div>
                 <Separator />
                 {renderTypographyControls()}
+                <Separator />
+                {renderBackgroundColorControls()}
+                <Separator />
+                {renderSpacingControls()}
+                <Separator />
+                {renderBorderControls()}
+              </>
+            )}
+
+            {block.type === "paymentInstructions" && (
+              <>
+                <Alert className="border-blue-200 bg-blue-50 text-blue-900">
+                  <AlertCircle className="h-4 w-4 text-blue-600" />
+                  <AlertTitle className="text-blue-900">
+                    {t("emailDesigner.paymentInstructions.title", "Smart Payment Instructions")}
+                  </AlertTitle>
+                  <AlertDescription className="text-blue-800">
+                    {t(
+                      "emailDesigner.paymentInstructions.description",
+                      "This block auto-renders online payment, fallback bank instructions, and paid/cancelled states during preview/send.",
+                    )}
+                  </AlertDescription>
+                </Alert>
+                <div className="space-y-2">
+                  <Label>{t("emailDesigner.paymentInstructions.ctaLabel", "Online CTA label")}</Label>
+                  <Input
+                    value={(block as Extract<EmailTemplateBlock, { type: "paymentInstructions" }>).ctaLabel}
+                    onChange={(e) =>
+                      onChange({ ...block, ctaLabel: e.target.value } as EmailTemplateBlock)
+                    }
+                    placeholder={t("emailDesigner.paymentInstructions.ctaPlaceholder", "Pay now")}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>{t("emailDesigner.paymentInstructions.fallbackMode", "Fallback mode")}</Label>
+                  <Select
+                    value={(block as Extract<EmailTemplateBlock, { type: "paymentInstructions" }>).fallbackMode || "bank_transfer"}
+                    onValueChange={(value: "bank_transfer" | "minimal") =>
+                      onChange({ ...block, fallbackMode: value } as EmailTemplateBlock)
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="bank_transfer">
+                        {t("emailDesigner.paymentInstructions.fallbackBank", "Bank transfer details")}
+                      </SelectItem>
+                      <SelectItem value="minimal">
+                        {t("emailDesigner.paymentInstructions.fallbackMinimal", "Minimal fallback message")}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center justify-between space-x-2">
+                  <Label htmlFor="smart-payment-show-reference">
+                    {t("emailDesigner.paymentInstructions.showReference", "Show payment reference")}
+                  </Label>
+                  <Switch
+                    id="smart-payment-show-reference"
+                    checked={(block as Extract<EmailTemplateBlock, { type: "paymentInstructions" }>).showReference ?? true}
+                    onCheckedChange={(checked) =>
+                      onChange({ ...block, showReference: checked } as EmailTemplateBlock)
+                    }
+                  />
+                </div>
                 <Separator />
                 {renderBackgroundColorControls()}
                 <Separator />

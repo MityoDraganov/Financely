@@ -50,7 +50,7 @@ import { TemplateCardPreview } from "@/components/templates/template-card-previe
 import { EmailTemplateCardPreview } from "@/components/templates/email-template-card-preview";
 import { CreateEmailTemplateDialog } from "@/components/email-designer/create-email-template-dialog";
 import type { Template } from "@/core/entities/template";
-import type { EmailTemplate } from "@/core/entities/email-template";
+import type { EmailTemplate, EmailTemplateBlock } from "@/core/entities/email-template";
 import {
 	EMAIL_TEMPLATE_TYPE_DEFINITIONS,
 	allowedContextsForTemplateType,
@@ -149,6 +149,38 @@ export default function TemplatesPage() {
 
 	const handleConfirmCreateEmailTemplate = async () => {
 		if (!currentOrganization?.id) return;
+		const allowedContexts = allowedContextsForTemplateType(selectedTemplateType);
+		const includeSmartPaymentBlock =
+			allowedContexts.includes("invoice_send") || selectedTemplateType === "invoice";
+		const defaultBlocks: EmailTemplateBlock[] = includeSmartPaymentBlock
+			? [
+					{
+						id: crypto.randomUUID(),
+						type: "paymentInstructions",
+						section: "body",
+						ctaLabel: "Pay now",
+						fallbackMode: "bank_transfer",
+						showReference: true,
+						backgroundColor: "#f8fafc",
+						border: {
+							borderWidth: 1,
+							borderColor: "#e2e8f0",
+							borderStyle: "solid",
+							borderRadius: 10,
+						},
+						spacing: {
+							paddingTop: 12,
+							paddingRight: 12,
+							paddingBottom: 12,
+							paddingLeft: 12,
+							marginTop: 8,
+							marginRight: 0,
+							marginBottom: 8,
+							marginLeft: 0,
+						},
+					},
+				]
+			: [];
 		try {
 			const newTemplateId = await createEmailTemplate.mutateAsync({
 				orgId: currentOrganization.id,
@@ -159,9 +191,9 @@ export default function TemplatesPage() {
 				version: 1,
 				isLocked: false,
 				isSystemDefault: false,
-				allowedContexts: allowedContextsForTemplateType(selectedTemplateType),
+				allowedContexts,
 				htmlContent: "",
-				blocks: [],
+				blocks: defaultBlocks,
 				designTokens: {
 					background: "#ffffff",
 					surface: "#f8fafc",
