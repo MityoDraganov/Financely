@@ -66,6 +66,7 @@ import ModularWidgetPage from "./pages/widget/modular-widget-page";
 import EmailDesignerWrapper from "./pages/email-designer-wrapper";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { OrganizationProvider } from "./contexts/organization-context";
+import { PaywallProvider } from "./contexts/paywall-context";
 import { ClerkProvider } from "@clerk/clerk-react";
 import { ClerkAuthProvider } from "./components/ClerkAuthProvider";
 import { ThemeProvider } from "./components/ui/theme-provider";
@@ -143,6 +144,7 @@ function App() {
 					>
 						<SidebarProvider>
 							<OrganizationProvider>
+								<PaywallProvider>
 								<BrandingProvider>
 									<Router>
 										<RevokedAccessAlert />
@@ -563,6 +565,7 @@ function App() {
 										<Toaster />
 									</Router>
 								</BrandingProvider>
+								</PaywallProvider>
 							</OrganizationProvider>
 						</SidebarProvider>
 					</ThemeProvider>

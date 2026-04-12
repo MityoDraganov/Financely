@@ -43,6 +43,9 @@ import { useInvoiceCurrencyConversion } from "@/hooks/use-invoice-currency-conve
 import { useInvoiceComplianceValidation } from "@/hooks/use-invoice-compliance-validation";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { usePaywall } from "@/contexts/paywall-context";
+import { useBilling } from "@/hooks/use-billing";
+import { FEATURE_KEYS } from "@/lib/billing/feature-registry";
 
 type TableColumn = {
 	id: string;
@@ -95,6 +98,17 @@ export default function CreateInvoicePage() {
 	const createInvoice = useCreateInvoice();
 	const { data: currentOrganization, isLoading: isOrgLoading } =
 		useCurrentOrganization();
+	const { requireAccess, openPaywall } = usePaywall();
+	const { canWrite, isLoading: isBillingLoading } = useBilling();
+
+	// Open the paywall immediately if the user can't write — don't let them
+	// fill out the whole form only to hit a Firebase error at submission.
+	useEffect(() => {
+		if (!isBillingLoading && !canWrite) {
+			openPaywall(FEATURE_KEYS.INVOICE_CREATE);
+		}
+	// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [isBillingLoading]);
 	const invoiceTemplateContext = useInvoiceTemplate();
 	const templates = invoiceTemplateContext?.templates ?? [];
 	const selectedTemplateId = invoiceTemplateContext?.selectedTemplateId ?? "";
@@ -832,6 +846,8 @@ export default function CreateInvoicePage() {
 	// Handle form submission
 	const handleSubmit = async (e: React.FormEvent): Promise<void> => {
 		e.preventDefault();
+
+		if (!requireAccess(FEATURE_KEYS.INVOICE_CREATE)) return;
 
 		if (!selectedTemplate) {
 			toast.error("Please select a template");

@@ -14,27 +14,14 @@ import { useCreateCheckoutSession } from "@/hooks/use-stripe-checkout";
 import { Loader2, Check, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
+import { PLAN } from "@/lib/billing/plan";
+
 const ONBOARDING_CHECKOUT_FLAG = "financely_onboarding_checkout";
 
 interface PaywallStepProps {
   onNext?: () => void;
   onSkip?: () => void;
 }
-
-const PLAN = {
-  name: "Pro Plan",
-  priceId: import.meta.env.VITE_STRIPE_PRICE_ID || "price_1SrZmZKFYBp87OV7EqNtL0T0",
-  price: "€5",
-  period: "month",
-  trialDays: 14,
-  features: [
-    "Unlimited invoices",
-    "Custom templates",
-    "Email automation",
-    "Analytics dashboard",
-    "Priority support",
-  ],
-};
 
 export function PaywallStep({ onNext: _onNext, onSkip }: PaywallStepProps) {
   const { t } = useTranslation();

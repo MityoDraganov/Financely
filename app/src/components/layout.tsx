@@ -27,6 +27,7 @@ import {
 	CornerDownRight,
 	TrendingUp,
 	BarChart3,
+	Lock,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { OrganizationSwitcher } from "@/components/organization-switcher";
@@ -50,6 +51,11 @@ import { Eye, Plus } from "lucide-react";
 import { memo, useMemo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { HelpButton } from "@/components/help-button";
+import { BillingStatusBanner } from "@/components/paywall/BillingStatusBanner";
+import { useBilling } from "@/hooks/use-billing";
+import { usePaywall } from "@/contexts/paywall-context";
+import { ROUTE_FEATURE_MAP, FEATURE_REGISTRY } from "@/lib/billing/feature-registry";
+import type { FeatureKey } from "@/lib/billing/feature-registry";
 
 // Navigation items will be created with translations inside the component
 
@@ -134,6 +140,25 @@ const NavItem = memo(
 
 NavItem.displayName = "NavItem";
 
+function LockedPagePlaceholder({ feature }: { feature: FeatureKey }) {
+	const { openPaywall } = usePaywall();
+	const definition = FEATURE_REGISTRY[feature];
+	return (
+		<div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 px-4 text-center">
+			<div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted">
+				<Lock className="h-5 w-5 text-muted-foreground" />
+			</div>
+			<div className="space-y-1">
+				<h2 className="text-lg font-semibold tracking-tight">{definition?.label ?? "Pro feature"}</h2>
+				<p className="text-sm text-muted-foreground max-w-xs">
+					{definition?.contextualHeadline ?? "Upgrade to Pro to unlock this feature."}
+				</p>
+			</div>
+			<Button onClick={() => openPaywall(feature)}>Upgrade to unlock</Button>
+		</div>
+	);
+}
+
 export default function AppLayout({ children }: { children: React.ReactNode }) {
 	const { t } = useTranslation();
 	const { organizationName } = useOrganizationBranding();
@@ -167,6 +192,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 	const invoiceTemplate = useInvoiceTemplate();
 	const designerTemplate = useDesignerTemplate();
 	const emailDesignerTemplate = useEmailDesignerTemplate();
+	const { canAccess } = useBilling();
+
+	// Route-level billing gate: find the first matching pattern
+	const lockedRouteFeature = useMemo(() => {
+		const match = ROUTE_FEATURE_MAP.find((gate) =>
+			location.pathname.startsWith(gate.pattern)
+		);
+		if (!match) return null;
+		return canAccess(match.feature) ? null : match.feature;
+	}, [location.pathname, canAccess]);
 
 	// Navigation groups with translations
 	const navGroups = useMemo(
@@ -495,7 +530,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 				</SidebarContent>
 			</Sidebar>
 			<div
-				className={`flex-1 bg-background w-full min-w-0 overflow-x-hidden ${
+				className={`flex flex-col flex-1 bg-background w-full min-w-0 overflow-x-hidden ${
 					isMobile
 						? `pt-14 ${useInlineFitSidebar ? "" : "pl-6"}`
 						: useInlineFitSidebar
@@ -503,7 +538,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 							: "pl-6"
 				}`}
 			>
-				{children}
+				<BillingStatusBanner />
+				{lockedRouteFeature ? (
+					<LockedPagePlaceholder feature={lockedRouteFeature} />
+				) : (
+					children
+				)}
 			</div>
 			<HelpButton />
 		</div>
