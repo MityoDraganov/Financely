@@ -4,6 +4,7 @@ import { paginateTemplate } from "./template-pagination";
 import { computeTableRuntimeLayout } from "./template-table-layout";
 
 const ZERO_SPACING = { top: 0, right: 0, bottom: 0, left: 0 };
+const STANDARD_PRINT_MARGINS = { top: 96, right: 96, bottom: 96, left: 96 };
 
 function createTemplate(elements: TemplateElement[]): Template {
 	return {
@@ -417,5 +418,137 @@ describe("paginateTemplate table background growth", () => {
 		expect(firstPageSlice).toBeUndefined();
 		expect(secondPageSlice).toBeDefined();
 		expect(secondPageSlice?.start).toBe(0);
+	});
+
+	it("keeps an element at printable bottom on the first page", () => {
+		const bottomBox: Extract<TemplateElement, { type: "box" }> = {
+			id: "bottom-box",
+			type: "box",
+			x: 120,
+			y: 1007, // 1123 - 96 - 20 (A4 height - bottom margin - element height)
+			width: 140,
+			height: 20,
+			rotation: 0,
+			zIndex: 1,
+			visible: true,
+			fill: "#111827",
+			stroke: "#00000000",
+			strokeWidth: 0,
+			radius: 0,
+			opacity: 1,
+		};
+		const template: Template = {
+			id: "template-bottom-edge",
+			orgId: "org-test",
+			name: "Bottom edge placement",
+			pageSize: "A4",
+			status: "draft",
+			brand: {
+				fonts: ["Inter"],
+				colors: {
+					primary: "#111827",
+					secondary: "#6b7280",
+					accent: "#2563eb",
+				},
+				margins: STANDARD_PRINT_MARGINS,
+			},
+			pageSettings: {
+				size: "A4",
+				orientation: "portrait",
+				margins: STANDARD_PRINT_MARGINS,
+				marginUnit: "in",
+				padding: ZERO_SPACING,
+			},
+			elements: [bottomBox],
+		};
+
+		const pages = paginateTemplate(template, {}, { w: 794, h: 1123 });
+		const pageIndexWithBottomBox = pages.findIndex((page) =>
+			page.elements.some((element) => element.id === bottomBox.id)
+		);
+
+		expect(pageIndexWithBottomBox).toBe(0);
+	});
+
+	it("does not push footer elements when a table has reserved designer height", () => {
+		const table = createTableElement({
+			id: "reserved-height-table",
+			y: 398,
+			height: 371,
+			headerHeight: 30,
+			rowHeight: 28,
+			itemsBinding: "invoice.items",
+			columns: [
+				{
+					id: "col-1",
+					header: "Description",
+					width: "1fr",
+					align: "left",
+					type: "text",
+					binding: "description",
+					format: { kind: "none" },
+					showTotal: false,
+				},
+				{
+					id: "col-2",
+					header: "Total",
+					width: "1fr",
+					align: "right",
+					type: "number",
+					binding: "total",
+					format: { kind: "none" },
+					showTotal: true,
+				},
+			],
+		});
+		const footerIcon: Extract<TemplateElement, { type: "icon" }> = {
+			id: "footer-icon",
+			type: "icon",
+			iconName: "facebook",
+			x: 96,
+			y: 1000, // 1000 + 27 = 1027, exactly printable bottom for A4 with 96px margins
+			width: 19,
+			height: 27,
+			rotation: 0,
+			zIndex: 10,
+			visible: true,
+			color: "#111827",
+		};
+		const template: Template = {
+			id: "template-reserved-table-height",
+			orgId: "org-test",
+			name: "Reserved table height",
+			pageSize: "A4",
+			status: "draft",
+			brand: {
+				fonts: ["Inter"],
+				colors: {
+					primary: "#111827",
+					secondary: "#6b7280",
+					accent: "#2563eb",
+				},
+				margins: STANDARD_PRINT_MARGINS,
+			},
+			pageSettings: {
+				size: "A4",
+				orientation: "portrait",
+				margins: STANDARD_PRINT_MARGINS,
+				marginUnit: "in",
+				padding: ZERO_SPACING,
+			},
+			elements: [table, footerIcon],
+		};
+		const context = {
+			invoice: {
+				items: [{ description: "Service", total: 100 }],
+			},
+		};
+
+		const pages = paginateTemplate(template, context, { w: 794, h: 1123 });
+		const pageIndexWithFooterIcon = pages.findIndex((page) =>
+			page.elements.some((element) => element.id === footerIcon.id)
+		);
+
+		expect(pageIndexWithFooterIcon).toBe(0);
 	});
 });

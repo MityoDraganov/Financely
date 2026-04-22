@@ -344,6 +344,14 @@ export function generateInvoiceHTML(
   // Get margins from template
   const margins = template.pageSettings?.margins ?? template.brand?.margins ?? { top: 96, right: 96, bottom: 96, left: 96 };
   const usableHeight = size.height - margins.top - margins.bottom;
+  const getTableBaselineHeight = (table: Extract<TemplateElement, { type: "table" }>): number => {
+    const minimumContentHeight = table.headerHeight + table.rowHeight;
+    const configuredHeight =
+      typeof table.height === "number" && Number.isFinite(table.height)
+        ? table.height
+        : minimumContentHeight;
+    return Math.max(minimumContentHeight, configuredHeight);
+  };
   
   // Paginate template into multiple pages
   const pages = paginateTemplate(template, invoice.data, { w: size.width, h: size.height });
@@ -354,7 +362,7 @@ export function generateInvoiceHTML(
     pageIndex: number,
     adjustedY: number
   ): { x: number; y: number } => {
-    const pageStartY = pageIndex * usableHeight;
+    const pageStartY = margins.top + pageIndex * usableHeight;
     const yInUsableArea = adjustedY - pageStartY;
     const yOnPage = margins.top + yInUsableArea;
     
@@ -382,7 +390,7 @@ export function generateInvoiceHTML(
       if (prevEl.type === "table" && prevEl.y < el.y) {
         const prevTbl = prevEl;
         const allItems = (getValueFromContextOrData(prevTbl.itemsBinding, dataContext, invoice.data) as Array<Record<string, unknown>>) || [];
-        const prevOriginalHeight = prevTbl.headerHeight + prevTbl.rowHeight;
+        const prevOriginalHeight = getTableBaselineHeight(prevTbl);
         const prevActualHeight = prevTbl.headerHeight + (allItems.length * prevTbl.rowHeight) + (prevTbl.columns.some((c) => c.showTotal) ? prevTbl.rowHeight : 0);
         const prevTableBottom = prevEl.y + prevOriginalHeight;
         

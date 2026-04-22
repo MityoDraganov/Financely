@@ -12,14 +12,26 @@ const templateRepository = getTemplateRealtimeRepository();
 export const useTemplates = (orgId: string = "demo-org") => {
 	const queryClient = useQueryClient();
 	const [isSubscribed, setIsSubscribed] = useState(false);
+	const shouldLogCreateInvoiceTemplates =
+		typeof window !== "undefined" &&
+		window.location.pathname.startsWith("/create-invoice");
 
 	// Initial fetch
 	const query = useQuery({
 		queryKey: ["templates", orgId],
 		queryFn: async () => {
-			return templateRepository.getAll({
+			const templates = await templateRepository.getAll({
 				queryConstraints: [{ field: "orgId", operator: "==", value: orgId }],
 			});
+			if (shouldLogCreateInvoiceTemplates) {
+				console.log("[CreateInvoice] templates fetched (initial query)", {
+					orgId,
+					count: templates.length,
+					templateIds: templates.map((template) => template.id),
+					templates,
+				});
+			}
+			return templates;
 		},
 		enabled: !!orgId,
 	});
@@ -33,11 +45,19 @@ export const useTemplates = (orgId: string = "demo-org") => {
 		setIsSubscribed(true);
 
 		let unsubscribe: (() => void) | null = null;
-		
+
 		try {
 			unsubscribe = templateRepository.subscribeToAll(
 				orgId,
 				(templates: Template[]) => {
+					if (shouldLogCreateInvoiceTemplates) {
+						console.log("[CreateInvoice] templates fetched (realtime subscription)", {
+							orgId,
+							count: templates.length,
+							templateIds: templates.map((template) => template.id),
+							templates,
+						});
+					}
 					// Update the React Query cache with real-time data
 					queryClient.setQueryData(["templates", orgId], templates);
 				}
@@ -53,7 +73,7 @@ export const useTemplates = (orgId: string = "demo-org") => {
 			}
 			setIsSubscribed(false);
 		};
-	}, [orgId, queryClient]);
+	}, [orgId, queryClient, shouldLogCreateInvoiceTemplates]);
 
 	return {
 		...query,

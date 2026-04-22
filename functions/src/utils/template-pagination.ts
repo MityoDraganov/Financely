@@ -52,6 +52,17 @@ function getTableActualHeight(
 	return headerHeight + (items.length * rowHeight) + (hasTotalingRow ? rowHeight : 0);
 }
 
+function getTableBaselineHeight(
+	tbl: Extract<TemplateElement, { type: "table" }>
+): number {
+	const minimumContentHeight = tbl.headerHeight + tbl.rowHeight;
+	const configuredHeight =
+		typeof tbl.height === "number" && Number.isFinite(tbl.height)
+			? tbl.height
+			: minimumContentHeight;
+	return Math.max(minimumContentHeight, configuredHeight);
+}
+
 /**
  * Calculate how many table rows fit in the available height
  */
@@ -120,11 +131,11 @@ export function paginateTemplate(
 			for (const prevEl of sortedElements) {
 				if (prevEl.id === el.id) break; // Stop at current element
 				
-				if (prevEl.type === "table" && prevEl.y < el.y) {
-					const prevTbl = prevEl;
-					const prevOriginalHeight = prevTbl.headerHeight + prevTbl.rowHeight;
-					const prevActualHeight = getTableActualHeight(prevTbl, context);
-					const prevTableBottom = prevEl.y + prevOriginalHeight;
+					if (prevEl.type === "table" && prevEl.y < el.y) {
+						const prevTbl = prevEl;
+						const prevOriginalHeight = getTableBaselineHeight(prevTbl);
+						const prevActualHeight = getTableActualHeight(prevTbl, context);
+						const prevTableBottom = prevEl.y + prevOriginalHeight;
 					
 					// If this table is below the previous table, add the expansion
 					if (el.y >= prevTableBottom) {
@@ -133,9 +144,9 @@ export function paginateTemplate(
 				}
 			}
 			
-			// Find which page the table starts on
-			let tablePageIndex = 0;
-			let tablePageStartY = 0;
+				// Find which page the table starts on
+				let tablePageIndex = 0;
+				let tablePageStartY = topMargin;
 			
 			// Find the page where tableStartY falls
 			while (tableStartY >= tablePageStartY + usableHeight) {
@@ -227,11 +238,11 @@ export function paginateTemplate(
 			for (const prevEl of sortedElements) {
 				if (prevEl.id === el.id) break;
 				
-				if (prevEl.type === "table" && prevEl.y < el.y) {
-					const prevTbl = prevEl;
-					const prevOriginalHeight = prevTbl.headerHeight + prevTbl.rowHeight;
-					const prevActualHeight = getTableActualHeight(prevTbl, context);
-					const prevTableBottom = prevEl.y + prevOriginalHeight;
+					if (prevEl.type === "table" && prevEl.y < el.y) {
+						const prevTbl = prevEl;
+						const prevOriginalHeight = getTableBaselineHeight(prevTbl);
+						const prevActualHeight = getTableActualHeight(prevTbl, context);
+						const prevTableBottom = prevEl.y + prevOriginalHeight;
 					
 					// If this element is below the previous table, add the expansion
 					if (el.y >= prevTableBottom) {
@@ -240,9 +251,9 @@ export function paginateTemplate(
 				}
 			}
 			
-			// Find which page this element belongs to
-			let targetPageIndex = 0;
-			let pageStartY = 0;
+				// Find which page this element belongs to
+				let targetPageIndex = 0;
+				let pageStartY = topMargin;
 			
 			// Find the page where elementY falls
 			while (elementY >= pageStartY + usableHeight) {

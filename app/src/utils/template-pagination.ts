@@ -40,6 +40,17 @@ const BACKGROUND_BOTTOM_ALIGNMENT_TOLERANCE = 24;
 const BACKGROUND_MIN_HORIZONTAL_OVERLAP_PX = 24;
 const BACKGROUND_MIN_VERTICAL_OVERLAP_PX = 12;
 
+function getTableBaselineHeight(
+	table: Extract<TemplateElement, { type: "table" }>
+): number {
+	const minimumContentHeight = table.headerHeight + table.rowHeight;
+	const configuredHeight =
+		typeof table.height === "number" && Number.isFinite(table.height)
+			? table.height
+			: minimumContentHeight;
+	return Math.max(minimumContentHeight, configuredHeight);
+}
+
 function getEffectiveElementWidth(
 	element: TemplateElement,
 	pageSize: { w: number; h: number },
@@ -206,7 +217,7 @@ export function paginateTemplate(
 		if (el.type !== "table") continue;
 		const layoutWidth = getEffectiveElementWidth(el, pageSize, margins);
 		const layout = computeTableRuntimeLayout(el, context, { layoutWidth });
-		const originalHeight = el.headerHeight + el.rowHeight;
+		const originalHeight = getTableBaselineHeight(el);
 		const actualHeight = layout.totalHeight;
 		tableGrowthById.set(el.id, {
 			table: el,
@@ -263,14 +274,14 @@ export function paginateTemplate(
 			for (const prevEl of sortedElements) {
 				if (prevEl.id === el.id) break; // Stop at current element
 
-				if (prevEl.type === "table" && prevEl.y < el.y) {
-					const prevTbl = prevEl;
-					const prevMeta = tableGrowthById.get(prevTbl.id);
-					const prevOriginalHeight =
-						prevMeta?.originalHeight ?? (prevTbl.headerHeight + prevTbl.rowHeight);
-					const prevActualHeight =
-						prevMeta?.actualHeight ??
-						computeTableRuntimeLayout(prevTbl, context, {
+					if (prevEl.type === "table" && prevEl.y < el.y) {
+						const prevTbl = prevEl;
+						const prevMeta = tableGrowthById.get(prevTbl.id);
+						const prevOriginalHeight =
+							prevMeta?.originalHeight ?? getTableBaselineHeight(prevTbl);
+						const prevActualHeight =
+							prevMeta?.actualHeight ??
+							computeTableRuntimeLayout(prevTbl, context, {
 							layoutWidth: getEffectiveElementWidth(prevTbl, pageSize, margins),
 						}).totalHeight;
 					const prevTableBottom = prevEl.y + prevOriginalHeight;
@@ -282,9 +293,11 @@ export function paginateTemplate(
 				}
 			}
 
-			// Find which page the table starts on
+			// Find which page the table starts on.
+			// Element coordinates are page-absolute (not margin-relative), so the
+			// first usable page segment starts at topMargin.
 			let tablePageIndex = 0;
-			let tablePageStartY = 0;
+			let tablePageStartY = topMargin;
 
 			// Find the page where tableStartY falls
 			while (tableStartY >= tablePageStartY + usableHeight) {
@@ -391,14 +404,14 @@ export function paginateTemplate(
 			for (const prevEl of sortedElements) {
 				if (prevEl.id === el.id) break;
 
-				if (prevEl.type === "table" && prevEl.y < el.y) {
-					const prevTbl = prevEl;
-					const prevMeta = tableGrowthById.get(prevTbl.id);
-					const prevOriginalHeight =
-						prevMeta?.originalHeight ?? (prevTbl.headerHeight + prevTbl.rowHeight);
-					const prevActualHeight =
-						prevMeta?.actualHeight ??
-						computeTableRuntimeLayout(prevTbl, context, {
+					if (prevEl.type === "table" && prevEl.y < el.y) {
+						const prevTbl = prevEl;
+						const prevMeta = tableGrowthById.get(prevTbl.id);
+						const prevOriginalHeight =
+							prevMeta?.originalHeight ?? getTableBaselineHeight(prevTbl);
+						const prevActualHeight =
+							prevMeta?.actualHeight ??
+							computeTableRuntimeLayout(prevTbl, context, {
 							layoutWidth: getEffectiveElementWidth(prevTbl, pageSize, margins),
 						}).totalHeight;
 					const prevTableBottom = prevEl.y + prevOriginalHeight;
@@ -423,7 +436,7 @@ export function paginateTemplate(
 			// jumping to just the next page.
 			if (renderElement.type === "box" || renderElement.type === "path") {
 				let pageIndex = 0;
-				let pageStartY = 0;
+				let pageStartY = topMargin;
 
 				while (elementY >= pageStartY + usableHeight) {
 					pageStartY += usableHeight;
@@ -450,9 +463,10 @@ export function paginateTemplate(
 				continue;
 			}
 
-			// Find which page this element belongs to
+			// Find which page this element belongs to.
+			// Element coordinates are page-absolute, so segments start at topMargin.
 			let targetPageIndex = 0;
-			let pageStartY = 0;
+			let pageStartY = topMargin;
 
 			// Find the page where elementY falls
 			while (elementY >= pageStartY + usableHeight) {

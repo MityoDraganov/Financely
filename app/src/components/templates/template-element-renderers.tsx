@@ -169,7 +169,9 @@ function calculateElementStyle(
 	const effectiveY = adjustedY + (elementSlice?.offsetY ?? 0);
 	const effectiveHeight = elementSlice?.height ?? el.height;
 	const usableHeight = pageSize.h - margins.top - margins.bottom;
-	const pageStartY = pageIndex * usableHeight;
+	// Element coordinates are page-absolute (same as designer canvas),
+	// so each usable page segment starts at top margin + N * usableHeight.
+	const pageStartY = margins.top + pageIndex * usableHeight;
 	const yInUsableArea = effectiveY - pageStartY;
 	
 	// Position relative to page, accounting for top margin
@@ -221,6 +223,17 @@ function getNumericWidth(value: React.CSSProperties["width"]): number | undefine
 	return undefined;
 }
 
+function getTableBaselineHeight(
+	table: Extract<TemplateElement, { type: "table" }>
+): number {
+	const minimumContentHeight = table.headerHeight + table.rowHeight;
+	const configuredHeight =
+		typeof table.height === "number" && Number.isFinite(table.height)
+			? table.height
+			: minimumContentHeight;
+	return Math.max(minimumContentHeight, configuredHeight);
+}
+
 /**
  * Calculate adjusted Y position accounting for table expansion
  * This recalculates the same adjustment logic used in pagination
@@ -243,15 +256,14 @@ function calculateAdjustedY(
 		}
 	});
 	
-	_templateElements.forEach((otherEl) => {
-		if (otherEl.type === "table" && otherEl.id !== el.id) {
-			const tableEl = otherEl as Extract<TemplateElement, { type: "table" }>;
-			const actualHeight = computeTableRuntimeLayout(tableEl, context, {
-				layoutWidth: getEffectiveElementWidth(tableEl, pageSize, margins),
-			}).totalHeight;
-			// Original height is preview height (headerHeight + rowHeight)
-			const originalHeight = tableEl.headerHeight + tableEl.rowHeight;
-			const heightDiff = actualHeight - originalHeight;
+		_templateElements.forEach((otherEl) => {
+			if (otherEl.type === "table" && otherEl.id !== el.id) {
+				const tableEl = otherEl as Extract<TemplateElement, { type: "table" }>;
+				const actualHeight = computeTableRuntimeLayout(tableEl, context, {
+					layoutWidth: getEffectiveElementWidth(tableEl, pageSize, margins),
+				}).totalHeight;
+				const originalHeight = getTableBaselineHeight(tableEl);
+				const heightDiff = actualHeight - originalHeight;
 			
 			if (heightDiff > 0) {
 				const originalTableBottom = otherEl.y + originalHeight;

@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useTemplates } from "@/hooks/repository-hooks/use-templates";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { InvoiceTemplateProvider } from "@/contexts/invoice-template-context";
@@ -20,6 +20,13 @@ export default function CreateInvoiceWrapper() {
 		return list.find((t) => t.id === selectedTemplateId);
 	}, [templates, selectedTemplateId]);
 
+	useEffect(() => {
+		console.log("[CreateInvoice] selected template resolved for page", {
+			selectedTemplateId,
+			selectedTemplate,
+		});
+	}, [selectedTemplateId, selectedTemplate]);
+
 	return (
 		<InvoiceTemplateProvider
 			templates={templates ?? []}
@@ -35,4 +42,3 @@ export default function CreateInvoiceWrapper() {
 		</InvoiceTemplateProvider>
 	);
 }
-
