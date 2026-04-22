@@ -118,11 +118,15 @@ export function TemplateSuggestionsStep({ onNext, onBack }: TemplateSuggestionsS
   // Build search string from AI keywords
   const searchQuery = businessData.templateKeywords?.slice(0, 3).join(" ") || businessData.industry || "";
 
-  const { data: marketplaceData, isLoading } = useMarketplaceTemplates(
+  const { data: marketplaceData, isLoading, error } = useMarketplaceTemplates(
     searchQuery
       ? { search: searchQuery, pageSize: 5, sort: "popular" }
       : undefined
   );
+
+  if(error){
+    console.error(error)
+  }
 
   const marketplaceTemplates: MarketplaceTemplate[] = marketplaceData?.templates ?? [];
 
