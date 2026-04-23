@@ -14,8 +14,47 @@ export type TableSlice = {
 export type RenderPage = {
 	pageIndex: number;
 	elements: TemplateElement[];
+	backgroundElements: TemplateElement[];
 	tableSlices: Record<string, TableSlice>;
+	elementPositions: Record<string, number>;
 };
+
+type TableMeta = {
+	table: Extract<TemplateElement, { type: "table" }>;
+	originalHeight: number;
+	actualHeight: number;
+};
+
+type PlacedExpandedTable = {
+	table: Extract<TemplateElement, { type: "table" }>;
+	tableOrder: number;
+	originalTop: number;
+	originalHeight: number;
+	actualHeight: number;
+	top: number;
+	bottom: number;
+};
+
+type ResolvedElementY = {
+	adjustedY: number;
+	cumulativeGrowthShift: number;
+	overlapPush: number;
+};
+
+const DEBUG_PREFIX = "[template-pagination-debug]";
+
+function shouldDebugPagination(): boolean {
+	return process.env.TEMPLATE_PAGINATION_DEBUG === "1";
+}
+
+function debugPaginationLog(
+	level: "log" | "warn",
+	message: string,
+	payload: Record<string, unknown>
+): void {
+	if (!shouldDebugPagination()) return;
+	console[level](DEBUG_PREFIX, message, payload);
+}
 
 /**
  * Helper to get value from nested object using dot-notation path
@@ -63,6 +102,67 @@ function getTableBaselineHeight(
 	return Math.max(minimumContentHeight, configuredHeight);
 }
 
+function isBehindByZIndex(
+	background: TemplateElement,
+	backgroundOrder: number,
+	foreground: TemplateElement,
+	foregroundOrder: number
+): boolean {
+	const backgroundZ = background.zIndex ?? 0;
+	const foregroundZ = foreground.zIndex ?? 0;
+
+	if (backgroundZ !== foregroundZ) {
+		return backgroundZ < foregroundZ;
+	}
+
+	return backgroundOrder <= foregroundOrder;
+}
+
+function resolveYWithExpandedTables(
+	element: TemplateElement,
+	elementOrder: number,
+	originalY: number,
+	elementHeight: number,
+	placedExpandedTables: PlacedExpandedTable[],
+	options?: { respectZIndexForOverlap?: boolean }
+): ResolvedElementY {
+	let adjustedY = originalY;
+	let cumulativeGrowthShift = 0;
+	let overlapPush = 0;
+
+	for (const placedTable of placedExpandedTables) {
+		if (originalY <= placedTable.originalTop) continue;
+		const shift = Math.max(0, placedTable.actualHeight - placedTable.originalHeight);
+		if (shift <= 0) continue;
+		adjustedY += shift;
+		cumulativeGrowthShift += shift;
+	}
+
+	for (const placedTable of placedExpandedTables) {
+		if (originalY <= placedTable.originalTop) continue;
+		if (
+			options?.respectZIndexForOverlap !== false &&
+			isBehindByZIndex(
+				element,
+				elementOrder,
+				placedTable.table,
+				placedTable.tableOrder
+			)
+		) {
+			continue;
+		}
+		const elementBottom = adjustedY + elementHeight;
+		const overlaps = adjustedY < placedTable.bottom && elementBottom > placedTable.top;
+		if (!overlaps) continue;
+		const push = placedTable.bottom - adjustedY;
+		if (push <= 0) continue;
+		adjustedY += push;
+		overlapPush += push;
+	}
+
+	return { adjustedY, cumulativeGrowthShift, overlapPush };
+}
+
 /**
  * Calculate how many table rows fit in the available height
  */
@@ -88,7 +188,13 @@ export function paginateTemplate(
 	const pages: RenderPage[] = [];
 	const ensurePage = (i: number): RenderPage => {
 		while (pages.length <= i) {
-			pages.push({ pageIndex: pages.length, elements: [], tableSlices: {} });
+			pages.push({
+				pageIndex: pages.length,
+				elements: [],
+				backgroundElements: [],
+				tableSlices: {},
+				elementPositions: {},
+			});
 		}
 		return pages[i];
 	};
@@ -99,17 +205,30 @@ export function paginateTemplate(
 	const bottomMargin = margins.bottom;
 	const usableHeight = pageHeight - topMargin - bottomMargin;
 
-	// Sort all elements by Y position
+	// Sort all content elements by Y position, excluding group containers (visual-only)
 	const sortedElements = [...(template.elements ?? [])]
-		.filter((el) => el.visible)
+		.filter((el) => el.visible && el.type !== "group")
 		.sort((a, b) => {
 			if (a.y !== b.y) return a.y - b.y;
 			return (a.zIndex ?? 0) - (b.zIndex ?? 0);
 		});
+	const elementOrderById = new Map<string, number>(
+		(template.elements ?? []).map((el, index) => [el.id, index])
+	);
+	const tableMetaById = new Map<string, TableMeta>();
+	for (const el of sortedElements) {
+		if (el.type !== "table") continue;
+		const originalHeight = getTableBaselineHeight(el);
+		const actualHeight = getTableActualHeight(el, context);
+		tableMetaById.set(el.id, {
+			table: el,
+			originalHeight,
+			actualHeight,
+		});
+	}
 
-	// Track current position in the document (absolute Y)
-	let currentDocumentY = 0;
 	let forcedPageShift = 0;
+	const placedExpandedTables: PlacedExpandedTable[] = [];
 
 	// Process each element in order
 	for (const el of sortedElements) {
@@ -121,32 +240,40 @@ export function paginateTemplate(
 		if (el.type === "table") {
 			// Handle table pagination
 			const tbl = el;
+			const tableMeta = tableMetaById.get(tbl.id);
 			const allItems = getByPath<Array<Record<string, unknown>>>(context, tbl.itemsBinding) || [];
-			const tableActualHeight = getTableActualHeight(tbl, context);
-			
-			// Calculate where table starts in document (accounting for previous elements pushing it down)
-			let tableStartY = el.y;
-			
-			// Adjust for elements that came before and expanded (like other tables)
-			for (const prevEl of sortedElements) {
-				if (prevEl.id === el.id) break; // Stop at current element
-				
-					if (prevEl.type === "table" && prevEl.y < el.y) {
-						const prevTbl = prevEl;
-						const prevOriginalHeight = getTableBaselineHeight(prevTbl);
-						const prevActualHeight = getTableActualHeight(prevTbl, context);
-						const prevTableBottom = prevEl.y + prevOriginalHeight;
-					
-					// If this table is below the previous table, add the expansion
-					if (el.y >= prevTableBottom) {
-						tableStartY += (prevActualHeight - prevOriginalHeight);
-					}
-				}
+			const tableActualHeight = tableMeta?.actualHeight ?? getTableActualHeight(tbl, context);
+			const tableOriginalHeight = tableMeta?.originalHeight ?? getTableBaselineHeight(tbl);
+			const tableOrder = elementOrderById.get(el.id) ?? Number.MAX_SAFE_INTEGER;
+			const resolvedTableY = resolveYWithExpandedTables(
+				el,
+				tableOrder,
+				el.y,
+				tableActualHeight,
+				placedExpandedTables,
+				{ respectZIndexForOverlap: false }
+			);
+			const tableStartY = resolvedTableY.adjustedY;
+			if (resolvedTableY.cumulativeGrowthShift > 0) {
+				debugPaginationLog("log", "table-shift-applied", {
+					targetTableId: el.id,
+					originalY: el.y,
+					totalGrowthShift: resolvedTableY.cumulativeGrowthShift,
+					adjustedY: tableStartY,
+				});
+			}
+			if (resolvedTableY.overlapPush > 0) {
+				debugPaginationLog("log", "table-overlap-push-applied", {
+					targetTableId: el.id,
+					originalY: el.y,
+					overlapPush: resolvedTableY.overlapPush,
+					adjustedY: tableStartY,
+				});
 			}
 			
-				// Find which page the table starts on
-				let tablePageIndex = 0;
-				let tablePageStartY = topMargin;
+			// Find which page the table starts on
+			let tablePageIndex = 0;
+			let tablePageStartY = topMargin;
 			
 			// Find the page where tableStartY falls
 			while (tableStartY >= tablePageStartY + usableHeight) {
@@ -201,6 +328,7 @@ export function paginateTemplate(
 							end: adjustedEnd,
 							isLastSlice: adjustedEnd >= allItems.length,
 						};
+						page.elementPositions[tbl.id] = tableStartY;
 						rowStart = adjustedEnd;
 					} else {
 						// Can't fit, move to next page
@@ -216,6 +344,7 @@ export function paginateTemplate(
 						end: rowEnd,
 						isLastSlice: rowEnd >= allItems.length,
 					};
+					page.elementPositions[tbl.id] = tableStartY;
 					rowStart = rowEnd;
 				}
 				
@@ -226,34 +355,50 @@ export function paginateTemplate(
 				currentTablePageIndex += 1;
 			}
 			
-			// Update current document position to after this table
-			tableStartY += tableActualHeight;
-			currentDocumentY = Math.max(currentDocumentY, tableStartY);
+			if (tableActualHeight > tableOriginalHeight) {
+				placedExpandedTables.push({
+					table: tbl,
+					tableOrder,
+					originalTop: tbl.y,
+					originalHeight: tableOriginalHeight,
+					actualHeight: tableActualHeight,
+					top: tableStartY,
+					bottom: tableStartY + tableActualHeight,
+				});
+			}
 			
 		} else {
 			// Handle non-table elements
-			let elementY = el.y;
-			
-			// Adjust for tables that came before and expanded
-			for (const prevEl of sortedElements) {
-				if (prevEl.id === el.id) break;
-				
-					if (prevEl.type === "table" && prevEl.y < el.y) {
-						const prevTbl = prevEl;
-						const prevOriginalHeight = getTableBaselineHeight(prevTbl);
-						const prevActualHeight = getTableActualHeight(prevTbl, context);
-						const prevTableBottom = prevEl.y + prevOriginalHeight;
-					
-					// If this element is below the previous table, add the expansion
-					if (el.y >= prevTableBottom) {
-						elementY += (prevActualHeight - prevOriginalHeight);
-					}
-				}
+			const elementOrder = elementOrderById.get(el.id) ?? Number.MAX_SAFE_INTEGER;
+			const elementHeight = el.height;
+			const resolvedElementY = resolveYWithExpandedTables(
+				el,
+				elementOrder,
+				el.y,
+				elementHeight,
+				placedExpandedTables
+			);
+			const elementY = resolvedElementY.adjustedY;
+			if (resolvedElementY.cumulativeGrowthShift > 0) {
+				debugPaginationLog("log", "element-shift-applied", {
+					elementId: el.id,
+					originalY: el.y,
+					totalGrowthShift: resolvedElementY.cumulativeGrowthShift,
+					adjustedY: elementY,
+				});
+			}
+			if (resolvedElementY.overlapPush > 0) {
+				debugPaginationLog("log", "element-overlap-push-applied", {
+					elementId: el.id,
+					originalY: el.y,
+					overlapPush: resolvedElementY.overlapPush,
+					adjustedY: elementY,
+				});
 			}
 			
-				// Find which page this element belongs to
-				let targetPageIndex = 0;
-				let pageStartY = topMargin;
+			// Find which page this element belongs to
+			let targetPageIndex = 0;
+			let pageStartY = topMargin;
 			
 			// Find the page where elementY falls
 			while (elementY >= pageStartY + usableHeight) {
@@ -262,7 +407,6 @@ export function paginateTemplate(
 			}
 			
 			// Check if element fits on this page
-			const elementHeight = el.height;
 			const elementBottom = elementY + elementHeight;
 			const pageEndY = pageStartY + usableHeight;
 			
@@ -270,17 +414,55 @@ export function paginateTemplate(
 			if (elementBottom > pageEndY) {
 				targetPageIndex += 1;
 			}
+			for (const placedTable of placedExpandedTables) {
+				if (
+					isBehindByZIndex(
+						el,
+						elementOrder,
+						placedTable.table,
+						placedTable.tableOrder
+					)
+				) {
+					continue;
+				}
+				const overlaps = elementY < placedTable.bottom && elementBottom > placedTable.top;
+				if (!overlaps) continue;
+				debugPaginationLog("warn", "overlap-detected", {
+					elementId: el.id,
+					elementType: el.type,
+					elementOriginalY: el.y,
+					elementAdjustedY: elementY,
+					elementHeight,
+					elementBottom,
+					tableId: placedTable.table.id,
+					tableOriginalY: placedTable.table.y,
+					tableAdjustedY: placedTable.top,
+					tableOriginalHeight: placedTable.originalHeight,
+					tableActualHeight: placedTable.actualHeight,
+					tableBottom: placedTable.bottom,
+				});
+			}
 
 			targetPageIndex += forcedPageShift;
 			
 			// Place element on appropriate page
-			ensurePage(targetPageIndex).elements.push(el);
+			const page = ensurePage(targetPageIndex);
+			page.elements.push(el);
+			page.elementPositions[el.id] = elementY;
 		}
 	}
 
 	// Ensure at least one page exists
 	if (pages.length === 0) {
 		ensurePage(0);
+	}
+
+	// Stamp background elements onto every page — they repeat identically, never paginated
+	const bgElements = template.backgroundElements ?? [];
+	if (bgElements.length > 0) {
+		for (const page of pages) {
+			page.backgroundElements = bgElements;
+		}
 	}
 
 	return pages;

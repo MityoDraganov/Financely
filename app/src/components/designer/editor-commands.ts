@@ -97,9 +97,23 @@ export function deleteSelection(
 	elements: TemplateElement[],
 	selectedIds: string[]
 ): { elements: TemplateElement[]; removedIds: string[] } {
-	const removedIds = elements
+	const directlyRemoved = elements
 		.filter((el) => isSelected(selectedIds, el.id) && !el.locked)
 		.map((el) => el.id);
+
+	// Also remove children of any deleted group containers
+	const deletedGroupIds = new Set(
+		elements
+			.filter((el) => directlyRemoved.includes(el.id) && el.type === "group")
+			.map((el) => el.id)
+	);
+	const orphanedChildIds = deletedGroupIds.size > 0
+		? elements
+			.filter((el) => el.groupId != null && deletedGroupIds.has(el.groupId))
+			.map((el) => el.id)
+		: [];
+
+	const removedIds = [...new Set([...directlyRemoved, ...orphanedChildIds])];
 	return {
 		elements: elements.filter((el) => !removedIds.includes(el.id)),
 		removedIds,
@@ -189,12 +203,34 @@ export function duplicateSelection(
 		return { elements, newIds: [] };
 	}
 
-	const duplicates: TemplateElement[] = selected.map((el) => {
+	// Remap group container ids so duplicated children point to the duplicated container
+	const groupIdRemap = new Map<string, string>();
+	for (const el of selected) {
+		if (el.type === "group") {
+			groupIdRemap.set(el.id, crypto.randomUUID());
+		}
+	}
+
+	// Also include children of any selected group containers that aren't already selected
+	const selectedGroupIds = new Set(selected.filter((el) => el.type === "group").map((el) => el.id));
+	const implicitChildren = selectedGroupIds.size > 0
+		? elements.filter(
+			(el) => el.groupId != null && selectedGroupIds.has(el.groupId) && !isSelected(selectedIds, el.id)
+		)
+		: [];
+	const allToDuplicate = [...selected, ...implicitChildren];
+
+	const duplicates: TemplateElement[] = allToDuplicate.map((el) => {
 		const base = clearBindings ? stripBindings(el) : { ...el };
+		const newId = groupIdRemap.get(el.id) ?? crypto.randomUUID();
 		const nextPos = clampMove(el.x + offsetX, el.y + offsetY, el.width, el.height, bounds);
+		const newGroupId = el.groupId != null && groupIdRemap.has(el.groupId)
+			? groupIdRemap.get(el.groupId)
+			: el.groupId;
 		return {
 			...base,
-			id: crypto.randomUUID(),
+			id: newId,
+			groupId: newGroupId,
 			x: nextPos.x,
 			y: nextPos.y,
 		};
@@ -338,16 +374,31 @@ export function groupSelection(
 ): { elements: TemplateElement[]; groupId: string | null } {
 	const selected = elements.filter((el) => isSelected(selectedIds, el.id));
 	if (selected.length < 2) return { elements, groupId: null };
+
 	const groupId = crypto.randomUUID();
+	const minZ = Math.min(...selected.map((el) => el.zIndex ?? 0));
+	const containerZ = Math.max(0, minZ - 1);
+
+	const container: TemplateElement = {
+		type: "group",
+		id: groupId,
+		label: undefined,
+		x: Math.min(...selected.map((el) => el.x)),
+		y: Math.min(...selected.map((el) => el.y)),
+		width: Math.max(...selected.map((el) => el.x + el.width)) - Math.min(...selected.map((el) => el.x)),
+		height: Math.max(...selected.map((el) => el.y + el.height)) - Math.min(...selected.map((el) => el.y)),
+		zIndex: containerZ,
+		visible: true,
+		locked: false,
+		opacity: 1,
+	} as unknown as TemplateElement;
+
+	const updated = elements.map((el) =>
+		isSelected(selectedIds, el.id) ? { ...el, groupId } : el
+	);
+
 	return {
-		elements: elements.map((el) =>
-			isSelected(selectedIds, el.id)
-				? {
-						...el,
-						groupId,
-					}
-				: el
-		),
+		elements: [...updated, container],
 		groupId,
 	};
 }
@@ -356,18 +407,47 @@ export function ungroupSelection(
 	elements: TemplateElement[],
 	selectedIds: string[]
 ): TemplateElement[] {
-	const selectedGroups = new Set(
-		elements.filter((el) => isSelected(selectedIds, el.id)).map((el) => el.groupId).filter(Boolean)
+	// Collect group container ids that are directly selected
+	const selectedContainerIds = new Set(
+		elements
+			.filter((el) => isSelected(selectedIds, el.id) && el.type === "group")
+			.map((el) => el.id)
 	);
-	if (selectedGroups.size === 0) return elements;
-	return elements.map((el) =>
-		el.groupId && selectedGroups.has(el.groupId)
-			? {
-					...el,
-					groupId: undefined,
-				}
-			: el
+	if (selectedContainerIds.size === 0) return elements;
+
+	return elements
+		.filter((el) => !selectedContainerIds.has(el.id))
+		.map((el) =>
+			el.groupId != null && selectedContainerIds.has(el.groupId)
+				? { ...el, groupId: undefined }
+				: el
+		);
+}
+
+export function syncGroupBoundingBoxes(elements: TemplateElement[]): TemplateElement[] {
+	const groupContainerIds = new Set(
+		elements.filter((el) => el.type === "group").map((el) => el.id)
 	);
+	if (groupContainerIds.size === 0) return elements;
+
+	const childrenByGroup = new Map<string, TemplateElement[]>();
+	for (const el of elements) {
+		if (el.groupId == null || !groupContainerIds.has(el.groupId)) continue;
+		const arr = childrenByGroup.get(el.groupId) ?? [];
+		arr.push(el);
+		childrenByGroup.set(el.groupId, arr);
+	}
+
+	return elements.map((el) => {
+		if (el.type !== "group") return el;
+		const children = childrenByGroup.get(el.id);
+		if (!children || children.length === 0) return el;
+		const x = Math.min(...children.map((c) => c.x));
+		const y = Math.min(...children.map((c) => c.y));
+		const right = Math.max(...children.map((c) => c.x + c.width));
+		const bottom = Math.max(...children.map((c) => c.y + c.height));
+		return { ...el, x, y, width: right - x, height: bottom - y };
+	});
 }
 
 export function createClipboardPayload(

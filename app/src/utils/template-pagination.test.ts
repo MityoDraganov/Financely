@@ -30,6 +30,7 @@ function createTemplate(elements: TemplateElement[]): Template {
 			padding: ZERO_SPACING,
 		},
 		elements,
+		backgroundElements: [],
 	};
 }
 
@@ -460,6 +461,7 @@ describe("paginateTemplate table background growth", () => {
 				padding: ZERO_SPACING,
 			},
 			elements: [bottomBox],
+			backgroundElements: [],
 		};
 
 		const pages = paginateTemplate(template, {}, { w: 794, h: 1123 });
@@ -537,6 +539,7 @@ describe("paginateTemplate table background growth", () => {
 				padding: ZERO_SPACING,
 			},
 			elements: [table, footerIcon],
+			backgroundElements: [],
 		};
 		const context = {
 			invoice: {

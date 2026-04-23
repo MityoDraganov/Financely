@@ -215,6 +215,7 @@ export class InvoiceTemplateGenerationService {
           margins: result.brand?.margins || STANDARD_PRINT_MARGINS_PX,
         },
         elements: enrichedElements,
+        backgroundElements: [],
         status: "draft",
         compliance: {
           region,
@@ -313,6 +314,7 @@ export class InvoiceTemplateGenerationService {
             margins: repairedRaw.brand?.margins ?? STANDARD_PRINT_MARGINS_PX,
           },
           elements: enrichedElements2,
+          backgroundElements: [],
           status: "draft",
           compliance: {
             region,

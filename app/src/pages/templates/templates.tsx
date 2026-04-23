@@ -6,6 +6,7 @@ import {
 	Plus,
 	Trash2,
 	Edit,
+	Copy,
 	FileText,
 	Calendar,
 	Loader2,
@@ -23,6 +24,13 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
+import {
+	ContextMenu,
+	ContextMenuContent,
+	ContextMenuItem,
+	ContextMenuSeparator,
+	ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useTemplates } from "@/hooks/repository-hooks/use-templates";
@@ -31,6 +39,8 @@ import { useDeleteTemplate } from "@/hooks/repository-hooks/use-delete-template"
 import { useBulkDeleteTemplates } from "@/hooks/repository-hooks/use-bulk-delete-templates";
 import { useDeleteEmailTemplate } from "@/hooks/repository-hooks/use-delete-email-template";
 import { useBulkDeleteEmailTemplates } from "@/hooks/repository-hooks/use-bulk-delete-email-templates";
+import { useDuplicateTemplate } from "@/hooks/repository-hooks/use-duplicate-template";
+import { useDuplicateEmailTemplate } from "@/hooks/repository-hooks/use-duplicate-email-template";
 import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { useCreateEmailTemplate } from "@/hooks/repository-hooks/use-create-email-template";
 import {
@@ -74,6 +84,8 @@ export default function TemplatesPage() {
 	const bulkDeleteEmailTemplates = useBulkDeleteEmailTemplates(
 		currentOrganization?.id,
 	);
+	const duplicateTemplate = useDuplicateTemplate(currentOrganization?.id);
+	const duplicateEmailTemplate = useDuplicateEmailTemplate(currentOrganization?.id);
 
 	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 	const [templateToDelete, setTemplateToDelete] = useState<{
@@ -612,8 +624,9 @@ export default function TemplatesPage() {
 									template.id,
 								);
 								return (
+									<ContextMenu key={template.id}>
+									<ContextMenuTrigger asChild>
 									<Card
-										key={template.id}
 										className={`flex flex-col h-full w-full hover:shadow-lg transition-all cursor-pointer group overflow-hidden py-0 gap-0 ${
 											isSelected
 												? "ring-2 ring-primary"
@@ -795,6 +808,32 @@ export default function TemplatesPage() {
 											</div>
 										</CardContent>
 									</Card>
+									</ContextMenuTrigger>
+									<ContextMenuContent>
+										<ContextMenuItem onClick={() => handleEdit(template.id)}>
+											<Edit className="mr-2 h-4 w-4" />
+											Edit
+										</ContextMenuItem>
+										<ContextMenuItem
+											disabled={duplicateTemplate.isPending}
+											onClick={() => duplicateTemplate.mutate(template as Template)}
+										>
+											<Copy className="mr-2 h-4 w-4" />
+											Duplicate
+										</ContextMenuItem>
+										<ContextMenuSeparator />
+										<ContextMenuItem
+											variant="destructive"
+											onClick={() => handleDelete({
+												id: template.id,
+												name: template.name || t("templates.card.untitled"),
+											})}
+										>
+											<Trash2 className="mr-2 h-4 w-4" />
+											Delete
+										</ContextMenuItem>
+									</ContextMenuContent>
+								</ContextMenu>
 								);
 							})}
 						</div>
@@ -920,8 +959,9 @@ export default function TemplatesPage() {
 									(type) => type.id === templateTypeId,
 								)?.label ?? "All Compatible";
 							return (
+								<ContextMenu key={template.id}>
+								<ContextMenuTrigger asChild>
 								<Card
-									key={template.id}
                   className={`flex flex-col h-full w-full hover:shadow-lg transition-all cursor-pointer group overflow-hidden py-0 gap-0 ${
 										isSelected ? "ring-2 ring-primary" : ""
 									}`}
@@ -1087,8 +1127,34 @@ export default function TemplatesPage() {
 										</div>
 									</CardContent>
 								</Card>
-							);
-						})}
+								</ContextMenuTrigger>
+								<ContextMenuContent>
+									<ContextMenuItem onClick={() => handleOpenEmailTemplate(template.id)}>
+										<Edit className="mr-2 h-4 w-4" />
+										Edit
+									</ContextMenuItem>
+									<ContextMenuItem
+										disabled={duplicateEmailTemplate.isPending}
+										onClick={() => duplicateEmailTemplate.mutate(template as EmailTemplate)}
+									>
+										<Copy className="mr-2 h-4 w-4" />
+										Duplicate
+									</ContextMenuItem>
+									<ContextMenuSeparator />
+									<ContextMenuItem
+										variant="destructive"
+										onClick={() => handleDeleteEmail({
+											id: template.id,
+											name: template.name || t("templates.email.card.untitled"),
+										})}
+									>
+										<Trash2 className="mr-2 h-4 w-4" />
+										Delete
+									</ContextMenuItem>
+								</ContextMenuContent>
+							</ContextMenu>
+						);
+					})}
 					</div>
 				)}
 			</section>

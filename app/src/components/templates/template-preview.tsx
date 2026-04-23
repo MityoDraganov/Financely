@@ -124,6 +124,9 @@ export function TemplatePreview({
 					}}
 				>
 					{watermarkElement}
+					{page.backgroundElements.map((el) =>
+						renderTemplateElement(el, { ...renderContext, isBackground: true })
+					)}
 					{page.elements.map((el) =>
 						renderTemplateElement(el, renderContext)
 					)}

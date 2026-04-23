@@ -73,6 +73,7 @@ export const templateService: TemplateService = {
           ...data,
           status: "draft",
           elements: enrichElementsWithFieldId(data.elements ?? []),
+          backgroundElements: enrichElementsWithFieldId(data.backgroundElements ?? []),
         },
       });
 
@@ -114,6 +115,9 @@ export const templateService: TemplateService = {
       ...(data.elements
         ? { elements: enrichElementsWithFieldId(data.elements) }
         : {}),
+      ...(data.backgroundElements
+        ? { backgroundElements: enrichElementsWithFieldId(data.backgroundElements) }
+        : {}),
     };
     return templateRepository.update({ id, data: nextData });
   },
@@ -135,7 +139,7 @@ export const templateService: TemplateService = {
 
       const nextVersionNumber = versions.length > 0 ? versions[0].version + 1 : 1;
 
-      const { orgId, name, description, pageSize, brand, elements, status, compliance, productTableConfig } = template;
+      const { orgId, name, description, pageSize, brand, elements, backgroundElements, status, compliance, productTableConfig } = template;
       const templateDataOnly: TemplateData = {
         orgId,
         name,
@@ -143,6 +147,7 @@ export const templateService: TemplateService = {
         pageSize,
         brand,
         elements,
+        backgroundElements,
         status,
         ...(compliance !== undefined && { compliance }),
         ...(productTableConfig !== undefined && { productTableConfig }),
@@ -248,7 +253,7 @@ export const templateService: TemplateService = {
       const nextVersionNumber = versions.length > 0 ? versions[0].version + 1 : 1;
 
       // Extract template data
-      const { orgId, name, description: templateDescription, pageSize, brand, elements, status, compliance, productTableConfig } = template;
+      const { orgId, name, description: templateDescription, pageSize, brand, elements, backgroundElements: bgElements, status, compliance, productTableConfig } = template;
       const templateDataOnly: TemplateData = {
         orgId,
         name,
@@ -256,6 +261,7 @@ export const templateService: TemplateService = {
         pageSize,
         brand,
         elements,
+        backgroundElements: bgElements,
         status,
         ...(compliance !== undefined && { compliance }),
         ...(productTableConfig !== undefined && { productTableConfig }),
@@ -347,7 +353,7 @@ export const templateService: TemplateService = {
 
     // Only save current state if it's different from the version we're restoring
     if (currentVersionNumber !== version) {
-      const { orgId, name, description, pageSize, brand, elements, status, compliance, productTableConfig } = template;
+      const { orgId, name, description, pageSize, brand, elements, backgroundElements: bgElementsCurrent, status, compliance, productTableConfig } = template;
       const currentTemplateData: TemplateData = {
         orgId,
         name,
@@ -355,6 +361,7 @@ export const templateService: TemplateService = {
         pageSize,
         brand,
         elements,
+        backgroundElements: bgElementsCurrent,
         status,
         ...(compliance !== undefined && { compliance }),
         ...(productTableConfig !== undefined && { productTableConfig }),

@@ -26,6 +26,7 @@ type RenderContext = {
 	templateElements: TemplateElement[];
 	margins: { top: number; right: number; bottom: number; left: number };
 	onFieldClick?: (binding: string) => void;
+	isBackground?: boolean;
 };
 
 type ElementStyle = React.CSSProperties;
@@ -255,16 +256,16 @@ function calculateAdjustedY(
 			adjustedY += usableHeight;
 		}
 	});
-	
-		_templateElements.forEach((otherEl) => {
-			if (otherEl.type === "table" && otherEl.id !== el.id) {
-				const tableEl = otherEl as Extract<TemplateElement, { type: "table" }>;
-				const actualHeight = computeTableRuntimeLayout(tableEl, context, {
-					layoutWidth: getEffectiveElementWidth(tableEl, pageSize, margins),
-				}).totalHeight;
-				const originalHeight = getTableBaselineHeight(tableEl);
-				const heightDiff = actualHeight - originalHeight;
-			
+
+	_templateElements.forEach((otherEl) => {
+		if (otherEl.type === "table" && otherEl.id !== el.id) {
+			const tableEl = otherEl as Extract<TemplateElement, { type: "table" }>;
+			const actualHeight = computeTableRuntimeLayout(tableEl, context, {
+				layoutWidth: getEffectiveElementWidth(tableEl, pageSize, margins),
+			}).totalHeight;
+			const originalHeight = getTableBaselineHeight(tableEl);
+			const heightDiff = actualHeight - originalHeight;
+
 			if (heightDiff > 0) {
 				const originalTableBottom = otherEl.y + originalHeight;
 				if (el.y >= originalTableBottom) {
@@ -1108,44 +1109,56 @@ export function renderTemplateElement(
 	el: TemplateElement,
 	renderContext: RenderContext
 ): React.ReactNode {
-	const { context, page, pageIndex, pageSize, templateElements, margins } = renderContext;
+	// Group containers are visual-only in the designer; never rendered in preview/PDF
+	if (el.type === "group") return null;
+
+	const { context, page, pageIndex, pageSize, templateElements, margins, isBackground } = renderContext;
 	// page is accessed via renderContext in renderTableElement
-	
-	const elementSlice = page.elementSlices[el.id];
-	const adjustedY = calculateAdjustedY(el, templateElements, context, pageSize, margins);
+
+	// Background elements are positioned at their stored coordinates, not paginated
+	const elementSlice = isBackground ? undefined : page.elementSlices[el.id];
+	const adjustedY = isBackground
+		? el.y
+		: (page.elementPositions[el.id] ??
+		   calculateAdjustedY(el, templateElements, context, pageSize, margins));
 	const style = calculateElementStyle(el, adjustedY, pageIndex, pageSize, margins, elementSlice);
-	
+
+	// Background elements don't capture pointer events
+	const finalStyle: React.CSSProperties = isBackground
+		? { ...style, pointerEvents: "none" }
+		: style;
+
 	switch (el.type) {
 		case "text":
-			return renderTextElement(el, style, context, renderContext.onFieldClick);
+			return renderTextElement(el, finalStyle, context, isBackground ? undefined : renderContext.onFieldClick);
 		case "image":
-			return renderImageElement(el, style, context);
+			return renderImageElement(el, finalStyle, context);
 		case "box":
-			return renderBoxElement(el, style, elementSlice);
+			return renderBoxElement(el, finalStyle, elementSlice);
 		case "line":
-			return renderLineElement(el, style);
+			return renderLineElement(el, finalStyle);
 		case "path":
-			return renderPathElement(el, style, elementSlice);
+			return renderPathElement(el, finalStyle, elementSlice);
 		case "icon":
-			return renderIconElement(el, style);
+			return renderIconElement(el, finalStyle);
 		case "input":
-			return renderInputElement(el, style, context, renderContext.onFieldClick);
+			return renderInputElement(el, finalStyle, context, isBackground ? undefined : renderContext.onFieldClick);
 		case "currency":
-			return renderCurrencyElement(el, style, context, renderContext.onFieldClick);
+			return renderCurrencyElement(el, finalStyle, context, isBackground ? undefined : renderContext.onFieldClick);
 		case "table":
-			return renderTableElement(el, style, renderContext);
+			return isBackground ? null : renderTableElement(el, finalStyle, renderContext);
 		case "spacer":
-			return renderSpacerElement(el, style);
+			return renderSpacerElement(el, finalStyle);
 		case "pageBreak":
 			return null;
 		case "qrCode":
-			return renderQrCodeElement(el, style, context);
+			return renderQrCodeElement(el, finalStyle, context);
 		case "barcode":
-			return renderBarcodeElement(el, style, context);
+			return renderBarcodeElement(el, finalStyle, context);
 		case "signature":
-			return renderSignatureElement(el, style);
+			return renderSignatureElement(el, finalStyle);
 		case "stamp":
-			return renderStampElement(el, style);
+			return renderStampElement(el, finalStyle);
 		default:
 			return null;
 	}

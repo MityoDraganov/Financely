@@ -17,6 +17,7 @@ export class TemplateDuplicator extends BaseDuplicator<Template, TemplateData> {
       pageSize: entity.pageSize,
       brand: entity.brand,
       elements: entity.elements,
+      backgroundElements: entity.backgroundElements ?? [],
       status: entity.status,
       compliance: entity.compliance,
       productTableConfig: entity.productTableConfig,

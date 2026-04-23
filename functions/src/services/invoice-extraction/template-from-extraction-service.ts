@@ -461,6 +461,7 @@ export class TemplateFromExtractionService {
         },
       },
       elements: enrichedElements,
+      backgroundElements: [],
       status: "draft",
       ...(raw.layoutModel === "hybrid_v2" || raw.layoutModel === "primitive_v1"
         ? { layoutModel: raw.layoutModel }

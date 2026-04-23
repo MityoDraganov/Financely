@@ -53,6 +53,8 @@ type TemplateSidebarProps = {
 		binding?: string;
 		itemsBinding?: string;
 	}) => boolean;
+	designerMode?: "content" | "background";
+	draftBackgroundElements?: TemplateElement[] | null;
 };
 
 type PaletteItemConfig = {
@@ -183,6 +185,8 @@ const PALETTE_ITEMS: PaletteItemConfig[] = [
 	},
 ];
 
+const BACKGROUND_ALLOWED_TYPES = new Set<TemplateElement["type"]>(["box", "line", "image", "path", "text"]);
+
 export function TemplateSidebar({
 	templates,
 	currentTemplate,
@@ -199,6 +203,8 @@ export function TemplateSidebar({
 	complianceStatus,
 	onAddRequiredElement,
 	elementIsRequired,
+	designerMode = "content",
+	draftBackgroundElements,
 }: TemplateSidebarProps) {
 	const { t } = useTranslation();
 	const [draggedElementId, setDraggedElementId] = useState<string | null>(
@@ -212,7 +218,11 @@ export function TemplateSidebar({
 	const lastDragActionAtRef = useRef(0);
 	const DRAG_CLICK_SUPPRESS_MS = 300;
 
-	const orderedElements = [...(currentTemplate?.elements ?? [])]
+	const activeElements = designerMode === "background"
+		? (draftBackgroundElements ?? currentTemplate?.backgroundElements ?? [])
+		: (currentTemplate?.elements ?? []);
+
+	const orderedElements = [...activeElements]
 		.map((el, index) => ({ el, index }))
 		.sort((a, b) => {
 			const aZ = a.el.zIndex ?? 0;
@@ -389,7 +399,7 @@ export function TemplateSidebar({
 					<div className="h-px flex-1 bg-gradient-to-r from-transparent via-border to-transparent"></div>
 				</div>
 				<div className="grid grid-cols-1 gap-2.5">
-					{PALETTE_ITEMS.filter((item) => !item.hidden).map((item) => {
+					{PALETTE_ITEMS.filter((item) => !item.hidden && (designerMode !== "background" || BACKGROUND_ALLOWED_TYPES.has(item.type))).map((item) => {
 						const Icon = item.icon;
 						return (
 							<Button

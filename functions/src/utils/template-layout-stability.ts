@@ -29,6 +29,7 @@ const ZINDEX_TIER: Record<TemplateElement["type"], number> = {
   barcode:   200,
   qrCode:    200,
   stamp:     200,
+  group:     0,
 };
 
 /** Minimum gap between stacked elements (px). */

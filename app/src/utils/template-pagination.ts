@@ -21,8 +21,10 @@ export type ElementSlice = {
 export type RenderPage = {
 	pageIndex: number;
 	elements: TemplateElement[];
+	backgroundElements: TemplateElement[];
 	tableSlices: Record<string, TableSlice>;
 	elementSlices: Record<string, ElementSlice>;
+	elementPositions: Record<string, number>;
 };
 
 type TableGrowthMeta = {
@@ -33,12 +35,21 @@ type TableGrowthMeta = {
 	heightDiff: number;
 };
 
-const BACKGROUND_MATCH_TOLERANCE = 4;
-const BACKGROUND_MAX_VERTICAL_PADDING = 96;
-const BACKGROUND_MAX_HORIZONTAL_PADDING = 120;
-const BACKGROUND_BOTTOM_ALIGNMENT_TOLERANCE = 24;
-const BACKGROUND_MIN_HORIZONTAL_OVERLAP_PX = 24;
-const BACKGROUND_MIN_VERTICAL_OVERLAP_PX = 12;
+type PlacedExpandedTable = {
+	table: Extract<TemplateElement, { type: "table" }>;
+	tableOrder: number;
+	originalTop: number;
+	originalHeight: number;
+	actualHeight: number;
+	top: number;
+	bottom: number;
+};
+
+type ResolvedElementY = {
+	adjustedY: number;
+	cumulativeGrowthShift: number;
+	overlapPush: number;
+};
 
 function getTableBaselineHeight(
 	table: Extract<TemplateElement, { type: "table" }>
@@ -77,101 +88,53 @@ function isBehindByZIndex(
 		return backgroundZ < foregroundZ;
 	}
 
-	// Equal z-index layers are common in saved templates; treat them as eligible.
 	return backgroundOrder <= foregroundOrder;
 }
 
-function calculateBackgroundHeightGrowth(
-	background: Extract<TemplateElement, { type: "box" | "path" }>,
-	backgroundOrder: number,
-	tableGrowth: TableGrowthMeta[],
-	elementOrderById: Map<string, number>,
-	pageSize: { w: number; h: number },
-	usableHeight: number
-): number {
-	const backgroundLeft = background.x;
-	const backgroundRight = background.x + background.width;
-	const backgroundTop = background.y;
-	const backgroundBottom = background.y + background.height;
-	let growth = 0;
+function resolveYWithExpandedTables(
+	element: TemplateElement,
+	elementOrder: number,
+	originalY: number,
+	elementHeight: number,
+	placedExpandedTables: PlacedExpandedTable[],
+	options?: { respectZIndexForOverlap?: boolean }
+): ResolvedElementY {
+	let adjustedY = originalY;
+	let cumulativeGrowthShift = 0;
+	let overlapPush = 0;
 
-	for (const meta of tableGrowth) {
-		if (meta.heightDiff <= 0) continue;
-
-		const table = meta.table;
-		const tableOrder = elementOrderById.get(table.id) ?? Number.MAX_SAFE_INTEGER;
-		if (!isBehindByZIndex(background, backgroundOrder, table, tableOrder)) {
-			continue;
-		}
-
-		const tableLeft = table.x;
-		const tableRight = table.x + table.width;
-		const tableTop = table.y;
-		const tableBottom = table.y + meta.originalHeight;
-		const overlapLeft = Math.max(backgroundLeft, tableLeft);
-		const overlapRight = Math.min(backgroundRight, tableRight);
-		const horizontalOverlap = Math.max(0, overlapRight - overlapLeft);
-		const fullyCoversTable =
-			backgroundLeft <= tableLeft + BACKGROUND_MATCH_TOLERANCE &&
-			backgroundRight >= tableRight - BACKGROUND_MATCH_TOLERANCE &&
-			backgroundTop <= tableTop + BACKGROUND_MATCH_TOLERANCE &&
-			backgroundBottom >= tableBottom - BACKGROUND_MATCH_TOLERANCE;
-		const coversTableHorizontally =
-			backgroundLeft <= tableLeft + BACKGROUND_MATCH_TOLERANCE &&
-			backgroundRight >= tableRight - BACKGROUND_MATCH_TOLERANCE;
-		const coversTableVertically =
-			backgroundTop <= tableTop + BACKGROUND_MATCH_TOLERANCE &&
-			backgroundBottom >= tableBottom - BACKGROUND_MATCH_TOLERANCE;
-
-		// Avoid stretching broad page wrappers: we only auto-grow tightly framed table backgrounds.
-		const topPadding = Math.max(0, tableTop - backgroundTop);
-		const bottomPadding = Math.max(0, backgroundBottom - tableBottom);
-		const leftPadding = Math.max(0, tableLeft - backgroundLeft);
-		const rightPadding = Math.max(0, backgroundRight - tableRight);
-		const tightlyFramed =
-			topPadding <= BACKGROUND_MAX_VERTICAL_PADDING &&
-			bottomPadding <= BACKGROUND_MAX_VERTICAL_PADDING &&
-			leftPadding <= BACKGROUND_MAX_HORIZONTAL_PADDING &&
-			rightPadding <= BACKGROUND_MAX_HORIZONTAL_PADDING;
-		const verticalOverlap = Math.max(
-			0,
-			Math.min(backgroundBottom, tableBottom) -
-				Math.max(backgroundTop, tableTop)
-		);
-		const looseCover =
-			horizontalOverlap >= BACKGROUND_MIN_HORIZONTAL_OVERLAP_PX &&
-			verticalOverlap >= BACKGROUND_MIN_VERTICAL_OVERLAP_PX &&
-			backgroundTop <= tableTop + BACKGROUND_MATCH_TOLERANCE;
-		const bottomAnchored =
-			horizontalOverlap >= BACKGROUND_MIN_HORIZONTAL_OVERLAP_PX &&
-			backgroundTop <= tableBottom + BACKGROUND_MATCH_TOLERANCE &&
-			backgroundBottom >= tableTop &&
-			Math.abs(backgroundBottom - tableBottom) <=
-				BACKGROUND_BOTTOM_ALIGNMENT_TOLERANCE;
-		const likelyPageWrapper =
-			backgroundLeft <= BACKGROUND_MATCH_TOLERANCE &&
-			backgroundTop <= BACKGROUND_MATCH_TOLERANCE &&
-			background.width >= pageSize.w * 0.8 &&
-			background.height >= usableHeight * 0.6;
-
-		const coverMatch = fullyCoversTable && tightlyFramed;
-		const wideCoverMatch =
-			coversTableHorizontally &&
-			coversTableVertically &&
-			Math.abs(backgroundBottom - tableBottom) <=
-				BACKGROUND_BOTTOM_ALIGNMENT_TOLERANCE;
-
-		if (!coverMatch && !wideCoverMatch && !bottomAnchored && !looseCover) {
-			continue;
-		}
-		if (likelyPageWrapper && !coverMatch && !wideCoverMatch && !bottomAnchored) {
-			continue;
-		}
-
-		growth += meta.heightDiff;
+	for (const placedTable of placedExpandedTables) {
+		if (originalY <= placedTable.originalTop) continue;
+		const shift = Math.max(0, placedTable.actualHeight - placedTable.originalHeight);
+		if (shift <= 0) continue;
+		adjustedY += shift;
+		cumulativeGrowthShift += shift;
 	}
 
-	return growth;
+	for (const placedTable of placedExpandedTables) {
+		if (originalY <= placedTable.originalTop) continue;
+		if (
+			options?.respectZIndexForOverlap !== false &&
+			isBehindByZIndex(
+				element,
+				elementOrder,
+				placedTable.table,
+				placedTable.tableOrder
+			)
+		) {
+			continue;
+		}
+		const elementBottom = adjustedY + elementHeight;
+		const overlaps =
+			adjustedY < placedTable.bottom && elementBottom > placedTable.top;
+		if (!overlaps) continue;
+		const push = placedTable.bottom - adjustedY;
+		if (push <= 0) continue;
+		adjustedY += push;
+		overlapPush += push;
+	}
+
+	return { adjustedY, cumulativeGrowthShift, overlapPush };
 }
 
 /**
@@ -185,12 +148,14 @@ export function paginateTemplate(
 	const pages: RenderPage[] = [];
 	const ensurePage = (i: number): RenderPage => {
 		while (pages.length <= i) {
-			pages.push({
-				pageIndex: pages.length,
-				elements: [],
-				tableSlices: {},
-				elementSlices: {},
-			});
+				pages.push({
+					pageIndex: pages.length,
+					elements: [],
+					backgroundElements: [],
+					tableSlices: {},
+					elementSlices: {},
+					elementPositions: {},
+				});
 		}
 		return pages[i];
 	};
@@ -201,9 +166,9 @@ export function paginateTemplate(
 	const bottomMargin = margins.bottom;
 	const usableHeight = pageHeight - topMargin - bottomMargin;
 
-	// Sort all elements by Y position
+	// Sort all content elements by Y position, excluding group containers (visual-only)
 	const sortedElements = [...(template.elements ?? [])]
-		.filter((el) => el.visible)
+		.filter((el) => el.visible && el.type !== "group")
 		.sort((a, b) => {
 			if (a.y !== b.y) return a.y - b.y;
 			return (a.zIndex ?? 0) - (b.zIndex ?? 0);
@@ -228,24 +193,8 @@ export function paginateTemplate(
 		});
 	}
 
-	const backgroundGrowthById = new Map<string, number>();
-	const tableGrowth = Array.from(tableGrowthById.values());
-	for (const el of sortedElements) {
-		if (el.type !== "box" && el.type !== "path") continue;
-		const growth = calculateBackgroundHeightGrowth(
-			el,
-			elementOrderById.get(el.id) ?? Number.MAX_SAFE_INTEGER,
-			tableGrowth,
-			elementOrderById,
-			pageSize,
-			usableHeight
-		);
-		if (growth > 0) {
-			backgroundGrowthById.set(el.id, growth);
-		}
-	}
-
 	let forcedPageShift = 0;
+	const placedExpandedTables: PlacedExpandedTable[] = [];
 
 	// Process each element in order
 	for (const el of sortedElements) {
@@ -267,31 +216,16 @@ export function paginateTemplate(
 			const itemCount = rowHeights.length;
 			const hasTotalingRow = tableLayout.hasTotalingRow;
 			const totalRowHeight = tableLayout.totalRowHeight;
-			// Calculate where table starts in document (accounting for previous elements pushing it down)
-			let tableStartY = el.y;
-
-			// Adjust for elements that came before and expanded (like other tables)
-			for (const prevEl of sortedElements) {
-				if (prevEl.id === el.id) break; // Stop at current element
-
-					if (prevEl.type === "table" && prevEl.y < el.y) {
-						const prevTbl = prevEl;
-						const prevMeta = tableGrowthById.get(prevTbl.id);
-						const prevOriginalHeight =
-							prevMeta?.originalHeight ?? getTableBaselineHeight(prevTbl);
-						const prevActualHeight =
-							prevMeta?.actualHeight ??
-							computeTableRuntimeLayout(prevTbl, context, {
-							layoutWidth: getEffectiveElementWidth(prevTbl, pageSize, margins),
-						}).totalHeight;
-					const prevTableBottom = prevEl.y + prevOriginalHeight;
-
-					// If this table is below the previous table, add the expansion
-					if (el.y >= prevTableBottom) {
-						tableStartY += prevActualHeight - prevOriginalHeight;
-					}
-				}
-			}
+			const tableOrder = elementOrderById.get(el.id) ?? Number.MAX_SAFE_INTEGER;
+			const resolvedTableY = resolveYWithExpandedTables(
+				el,
+				tableOrder,
+				el.y,
+				tableMeta?.actualHeight ?? tableLayout.totalHeight,
+				placedExpandedTables,
+				{ respectZIndexForOverlap: false }
+			);
+			const tableStartY = resolvedTableY.adjustedY;
 
 			// Find which page the table starts on.
 			// Element coordinates are page-absolute (not margin-relative), so the
@@ -386,6 +320,7 @@ export function paginateTemplate(
 					end: rowEnd,
 					isLastSlice,
 				};
+				page.elementPositions[tbl.id] = tableStartY;
 				emittedAtLeastOneSlice = true;
 				rowStart = rowEnd;
 
@@ -396,40 +331,34 @@ export function paginateTemplate(
 				currentTablePageIndex += 1;
 			}
 
-		} else {
-			// Handle non-table elements
-			let elementY = el.y;
-
-			// Adjust for tables that came before and expanded
-			for (const prevEl of sortedElements) {
-				if (prevEl.id === el.id) break;
-
-					if (prevEl.type === "table" && prevEl.y < el.y) {
-						const prevTbl = prevEl;
-						const prevMeta = tableGrowthById.get(prevTbl.id);
-						const prevOriginalHeight =
-							prevMeta?.originalHeight ?? getTableBaselineHeight(prevTbl);
-						const prevActualHeight =
-							prevMeta?.actualHeight ??
-							computeTableRuntimeLayout(prevTbl, context, {
-							layoutWidth: getEffectiveElementWidth(prevTbl, pageSize, margins),
-						}).totalHeight;
-					const prevTableBottom = prevEl.y + prevOriginalHeight;
-
-					// If this element is below the previous table, add the expansion
-					if (el.y >= prevTableBottom) {
-						elementY += prevActualHeight - prevOriginalHeight;
-					}
-				}
+			const tableOriginalHeight = tableMeta?.originalHeight ?? getTableBaselineHeight(tbl);
+			const tableActualHeight = tableMeta?.actualHeight ?? tableLayout.totalHeight;
+			if (tableActualHeight > tableOriginalHeight) {
+				placedExpandedTables.push({
+					table: tbl,
+					tableOrder,
+					originalTop: tbl.y,
+					originalHeight: tableOriginalHeight,
+					actualHeight: tableActualHeight,
+					top: tableStartY,
+					bottom: tableStartY + tableActualHeight,
+				});
 			}
 
-			const backgroundGrowth =
-				el.type === "box" || el.type === "path"
-					? backgroundGrowthById.get(el.id) ?? 0
-					: 0;
-			const renderElement: TemplateElement =
-				backgroundGrowth > 0 ? { ...el, height: el.height + backgroundGrowth } : el;
+		} else {
+			// Handle non-table elements
+			const renderElement = el;
 			const elementHeight = renderElement.height;
+			const elementOrder = elementOrderById.get(el.id) ?? Number.MAX_SAFE_INTEGER;
+			const resolvedElementY = resolveYWithExpandedTables(
+				renderElement,
+				elementOrder,
+				el.y,
+				elementHeight,
+				placedExpandedTables
+			);
+			const elementY = resolvedElementY.adjustedY;
+
 			const elementBottom = elementY + elementHeight;
 
 			// Background effects should continue across page boundaries instead of
@@ -455,6 +384,7 @@ export function paginateTemplate(
 							offsetY: sliceStart - elementY,
 							height: sliceEnd - sliceStart,
 						};
+						page.elementPositions[renderElement.id] = elementY;
 					}
 
 					pageStartY += usableHeight;
@@ -484,13 +414,23 @@ export function paginateTemplate(
 			targetPageIndex += forcedPageShift;
 
 			// Place element on appropriate page
-			ensurePage(targetPageIndex).elements.push(renderElement);
+			const page = ensurePage(targetPageIndex);
+			page.elements.push(renderElement);
+			page.elementPositions[renderElement.id] = elementY;
 		}
 	}
 
 	// Ensure at least one page exists
 	if (pages.length === 0) {
 		ensurePage(0);
+	}
+
+	// Stamp background elements onto every page — they repeat identically, never paginated
+	const bgElements = template.backgroundElements ?? [];
+	if (bgElements.length > 0) {
+		for (const page of pages) {
+			page.backgroundElements = bgElements;
+		}
 	}
 
 	return pages;

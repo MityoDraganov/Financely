@@ -131,6 +131,7 @@ export class OCRToTemplateService {
         margins: STANDARD_PRINT_MARGINS_PX,
       },
       elements: deduped,
+      backgroundElements: [],
       status: "draft",
       compliance: {
         region,

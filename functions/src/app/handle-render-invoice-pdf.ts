@@ -404,12 +404,66 @@ export function generateInvoiceHTML(
   };
 
   // Render a single page's elements
-  const renderPageElements = (page: RenderPage): string => {
-    return page.elements.map((el) => {
-      if (!el.visible) return "";
+  // Render background elements (box, image, path, line, text) at their stored coordinates.
+  // Background elements repeat identically on every page — they are never paginated.
+  const renderBackgroundElements = (page: RenderPage): string => {
+    return (page.backgroundElements ?? []).map((el) => {
+      if (!el.visible || el.type === "group") return "";
+      const adjustedY = el.y; // No pagination — use stored Y directly
+      const pos = calculateElementPosition(el, page.pageIndex, adjustedY);
+      const commonStyle = `
+        position: absolute;
+        left: ${pos.x}px;
+        top: ${pos.y}px;
+        width: ${el.width}px;
+        height: ${el.height}px;
+        transform: rotate(${el.rotation}deg);
+        z-index: 0;
+        pointer-events: none;
+      `;
+      if (el.type === "box") {
+        const fill = el.fillGradient
+          ? `background: linear-gradient(${el.fillGradient.angle}deg, ${el.fillGradient.colors.join(", ")})`
+          : `background: ${el.fill || "transparent"}`;
+        const strokeStyle = el.strokeWidth
+          ? `border: ${el.strokeWidth}px ${el.strokeStyle || "solid"} ${el.stroke || "transparent"}`
+          : "";
+        return `<div style="${commonStyle} ${fill}; ${strokeStyle}; border-radius: ${el.radius || 0}px; opacity: ${el.opacity ?? 1};"></div>`;
+      }
+      if (el.type === "image") {
+        const src = el.src || "";
+        return src
+          ? `<img src="${src}" style="${commonStyle} object-fit: ${el.objectFit || "contain"}; opacity: ${el.opacity ?? 1};" />`
+          : "";
+      }
+      if (el.type === "path") {
+        const pathD = el.pathData || "";
+        if (!pathD) return "";
+        const fill = el.fill || "transparent";
+        return `<svg style="${commonStyle}" viewBox="0 0 ${el.width} ${el.height}" xmlns="http://www.w3.org/2000/svg"><path d="${pathD}" fill="${fill}" opacity="${el.opacity ?? 1}" /></svg>`;
+      }
+      if (el.type === "line") {
+        return `<div style="${commonStyle}"><svg width="${el.width}" height="${el.height}" xmlns="http://www.w3.org/2000/svg"><line x1="${el.x}" y1="${el.y}" x2="${el.x2}" y2="${el.y2}" stroke="${el.stroke || "#000"}" stroke-width="${el.strokeWidth || 1}" /></svg></div>`;
+      }
+      if (el.type === "text") {
+        const text = el.text || "";
+        const typo = el.typography;
+        const textStyle = typo ? `font-family: ${typo.fontFamily || "Inter"}; font-size: ${typo.fontSize || 12}px; font-weight: ${typo.fontWeight || "normal"}; color: ${typo.color || "#111827"}; text-align: ${typo.align || "left"};` : "";
+        return `<div style="${commonStyle} ${textStyle} overflow: hidden;">${text}</div>`;
+      }
+      return "";
+    }).join("");
+  };
 
-      // Calculate adjusted Y position
-      let adjustedY = calculateAdjustedY(el);
+  const renderPageElements = (page: RenderPage): string => {
+    const bgHtml = renderBackgroundElements(page);
+    const contentHtml = page.elements.map((el) => {
+      if (!el.visible) return "";
+      // Group containers are visual-only; skip in PDF
+      if (el.type === "group") return "";
+
+      // Prefer pagination-resolved Y to keep rendering aligned with pagination shifts.
+      let adjustedY = page.elementPositions[el.id] ?? calculateAdjustedY(el);
       
       const pos = calculateElementPosition(el, page.pageIndex, adjustedY);
       
@@ -882,6 +936,7 @@ export function generateInvoiceHTML(
 
       return "";
     }).join("");
+    return bgHtml + contentHtml;
   };
 
   // Generate watermark HTML if enabled AND has valid imageUrl or text

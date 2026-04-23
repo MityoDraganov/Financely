@@ -56,6 +56,7 @@ export const templateSanitizationService: TemplateSanitizationService = {
         }
         return element;
       }),
+      backgroundElements: template.backgroundElements ?? [],
       status: "draft",
       compliance: template.compliance,
       productTableConfig: template.productTableConfig,

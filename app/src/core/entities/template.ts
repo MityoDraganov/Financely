@@ -45,6 +45,7 @@ export const templateElementBaseSchema = z.object({
     "signature",
     "stamp",
     "path",
+    "group",
   ]),
   x: z.number().min(0),
   y: z.number().min(0),
@@ -437,6 +438,11 @@ export const pathElementSchema = templateElementBaseSchema.extend({
   scaleStroke: z.boolean().default(false),
 });
 
+export const groupElementSchema = templateElementBaseSchema.extend({
+  type: z.literal("group"),
+  label: z.string().optional(),
+});
+
 export const templateElementSchema = z.discriminatedUnion("type", [
   textElementSchema,
   imageElementSchema,
@@ -453,6 +459,7 @@ export const templateElementSchema = z.discriminatedUnion("type", [
   signatureElementSchema,
   stampElementSchema,
   pathElementSchema,
+  groupElementSchema,
 ]);
 
 export type TemplateElement = z.infer<typeof templateElementSchema>;
@@ -729,6 +736,7 @@ export const templateDataSchema = z.object({
   repeating: templateRepeatingSchema.optional(),
   referenceLayer: templateReferenceLayerSchema.optional(),
   elements: z.array(templateElementSchema).default([]),
+  backgroundElements: z.array(templateElementSchema).default([]),
   status: z.enum(["draft", "published"]).default("draft"),
   // Compliance configuration for invoice templates
   compliance: templateComplianceConfigSchema.optional(),

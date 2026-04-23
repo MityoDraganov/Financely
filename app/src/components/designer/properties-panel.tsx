@@ -54,6 +54,7 @@ type PropertiesPanelProps = {
 	template: Template | undefined;
 	selectedElementIds: string[];
 	draftElements: TemplateElement[] | null;
+	draftBackgroundElements?: TemplateElement[] | null;
 	organization: Organization | undefined;
 	complianceStatus: TemplateComplianceStatus | null;
 	saveMutation: UseMutationResult<void, Error, Partial<TemplateData>, unknown>;
@@ -76,6 +77,7 @@ export function PropertiesPanel({
 	template,
 	selectedElementIds,
 	draftElements,
+	draftBackgroundElements,
 	organization,
 	complianceStatus,
 	saveMutation,
@@ -147,9 +149,12 @@ export function PropertiesPanel({
 		);
 	}
 
-	const elements = draftElements ?? template.elements ?? [];
+	const allElements = [
+		...(draftElements ?? template.elements ?? []),
+		...(draftBackgroundElements ?? template.backgroundElements ?? []),
+	];
 	const selectedElements = selectedElementIds.length > 0
-		? elements.filter((e) => selectedElementIds.includes(e.id))
+		? allElements.filter((e) => selectedElementIds.includes(e.id))
 		: [];
 	const selectedElement = selectedElements.length === 1 ? selectedElements[0] : undefined;
 	const hasBlockSelected = selectedElement != null;
@@ -525,7 +530,7 @@ export function PropertiesPanel({
 				<ElementProperties
 					element={selectedElement}
 					onChange={onUpdateElement}
-					allElements={elements}
+					allElements={allElements}
 					onOpenImagePicker={onOpenImagePicker}
 				/>
 			</div>

@@ -28,6 +28,8 @@ type CanvasHeaderProps = {
 	state: DesignerState;
 	isSubscribed: boolean;
 	activeUsers: UserPresence[];
+	designerMode?: "content" | "background";
+	onDesignerModeChange?: (mode: "content" | "background") => void;
 	onTemplateChange: (id: string) => void;
 	onCreateNewTemplate: () => void;
 	onZoomChange: (zoom: number) => void;
@@ -41,6 +43,8 @@ export function CanvasHeader({
 	state,
 	isSubscribed,
 	activeUsers,
+	designerMode = "content",
+	onDesignerModeChange,
 	onTemplateChange,
 	onZoomChange,
 	onTogglePreview,
@@ -77,6 +81,37 @@ export function CanvasHeader({
 					<div className="w-2 h-2 bg-green-500 dark:bg-green-400 rounded-full animate-pulse" />
 					<span>{t('designer.canvasHeader.live')}</span>
 				</div>
+			)}
+			{!isMobile && onDesignerModeChange && (
+				<div className="flex items-center rounded-md border border-border overflow-hidden shrink-0">
+					<button
+						type="button"
+						onClick={() => onDesignerModeChange("content")}
+						className={`px-3 py-1 text-xs font-medium transition-colors ${
+							designerMode === "content"
+								? "bg-primary text-primary-foreground"
+								: "bg-transparent text-muted-foreground hover:bg-muted"
+						}`}
+					>
+						{t('designer.canvasHeader.contentLayer', 'Content')}
+					</button>
+					<button
+						type="button"
+						onClick={() => onDesignerModeChange("background")}
+						className={`px-3 py-1 text-xs font-medium transition-colors ${
+							designerMode === "background"
+								? "bg-primary text-primary-foreground"
+								: "bg-transparent text-muted-foreground hover:bg-muted"
+						}`}
+					>
+						{t('designer.canvasHeader.backgroundLayer', 'Background')}
+					</button>
+				</div>
+			)}
+			{designerMode === "background" && !isMobile && (
+				<span className="text-xs text-muted-foreground shrink-0">
+					{t('designer.canvasHeader.backgroundHint', 'Repeats on every page')}
+				</span>
 			)}
 			{!isMobile && <EnhancedPresenceIndicator users={activeUsers} />}
 			<div className="ml-auto flex items-center gap-2 shrink-0">
