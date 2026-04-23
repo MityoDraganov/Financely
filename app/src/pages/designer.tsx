@@ -1901,36 +1901,6 @@ export default function TemplateDesignerPage() {
 		}
 	}
 
-	function pasteToOtherLayer(target?: { x: number; y: number } | null) {
-		const clipboard = clipboardRef.current;
-		if (!clipboard) return;
-		const isContent = designerModeRef.current === "content";
-		const otherElements = isContent
-			? (draftBackgroundRef.current ?? currentTemplateRef.current?.backgroundElements ?? [])
-			: (draftRef.current ?? currentTemplateRef.current?.elements ?? []);
-		const { elements: nextElements, newIds } = pasteClipboard(
-			otherElements,
-			clipboard,
-			getCommandBounds(),
-			{
-				target: target ?? lastCursorCanvasPointRef.current,
-				offsetX: 20,
-				offsetY: 20,
-				clearBindings: true,
-			}
-		);
-		if (newIds.length === 0) return;
-		if (isContent) {
-			draftBackgroundRef.current = nextElements;
-			setDraftBackgroundElements(nextElements);
-		} else {
-			draftRef.current = nextElements;
-			setDraftElements(nextElements);
-		}
-		queueCommandSave();
-		clearClipboardIfCut();
-	}
-
 	function pasteFromClipboard(target?: { x: number; y: number } | null) {
 		const clipboard = clipboardRef.current;
 		if (!clipboard) return;
