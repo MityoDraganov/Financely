@@ -134,6 +134,9 @@ export function TemplateCardPreview({ template }: TemplateCardPreviewProps) {
             }}
             className="bg-white dark:bg-neutral-900"
           >
+            {firstPage.backgroundElements.map((el) =>
+              renderTemplateElement(el, renderContext)
+            )}
             {firstPage.elements.map((el) =>
               renderTemplateElement(el, renderContext)
             )}
