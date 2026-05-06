@@ -22,6 +22,7 @@ import {
 	StickyNote,
 	GripVertical,
 	Waves,
+	Group,
 } from "lucide-react";
 import { Template, TemplateElement } from "@/core";
 import { toast } from "sonner";
@@ -135,6 +136,15 @@ const PALETTE_ITEMS: PaletteItemConfig[] = [
 		labelDefault: "Path",
 		addedToastKey: "designer.sidebar.pathAdded",
 		addedToastDefault: "Path added",
+	},
+	{
+		type: "group",
+		icon: Group,
+		iconClassName: "text-neutral-600",
+		labelKey: "designer.sidebar.group",
+		labelDefault: "Group",
+		addedToastKey: "designer.sidebar.groupAdded",
+		addedToastDefault: "Group added",
 	},
 	{
 		type: "spacer",

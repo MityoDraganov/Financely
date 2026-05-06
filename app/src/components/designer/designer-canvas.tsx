@@ -20,6 +20,7 @@ import {
 	InputElement,
 	TableElement,
 	PathElement,
+	GroupElement,
 } from "@/components/designer/elements";
 import CurrencyElement from "@/components/designer/elements/currency";
 import type { DesignerState, DragState, SnapGuide } from "./designer-types";
@@ -490,7 +491,7 @@ export function DesignerCanvas({
 				{/* z-index 0 container ensures background elements never appear above content regardless of individual el.zIndex */}
 				<div style={{ position: "absolute", inset: 0, zIndex: 0 }}>
 				{backgroundElements.map((el: TemplateElement) => {
-					if (el.visible === false) return null;
+					if (el.visible === false || el.type === "group") return null;
 					const pathElement = el.type === "path" ? (el as Extract<TemplateElement, { type: "path" }>) : null;
 					const elementPaddingCss = getElementPaddingCss(el);
 					const elementBorderRadiusCss = getElementBorderRadiusCss(el);
@@ -693,9 +694,9 @@ export function DesignerCanvas({
 											<Lock className="w-3 h-3" />
 										</div>
 									)}
-									{/* Resize handles - only show for single selection */}
+									{/* Resize handles - only show for single selection, not for groups */}
 									{/* For tables, only show width resize handles (e, w) - height is calculated dynamically */}
-									{!previewMode && state.selectedElementIds?.length === 1 && state.selectedElementIds?.includes(el.id) && !isLocked && (
+									{!previewMode && el.type !== "group" && state.selectedElementIds?.length === 1 && state.selectedElementIds?.includes(el.id) && !isLocked && (
 										<>
 											{(
 												el.type === "table"
@@ -919,6 +920,9 @@ export function DesignerCanvas({
 											</div>
 										);
 									})()}
+									{el.type === "group" && (
+										<GroupElement previewMode={previewMode} />
+									)}
 									{pathElement && (
 										<div className="absolute inset-0">
 											<PathElement element={pathElement} />

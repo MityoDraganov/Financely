@@ -2296,6 +2296,19 @@ export default function TemplateDesignerPage() {
 													scaleStroke: false,
 												};
 											})()
+									: kind === "group"
+										? {
+												id: crypto.randomUUID(),
+												type: "group" as const,
+												x: at?.x ?? 60,
+												y: at?.y ?? 80,
+												width: 200,
+												height: 150,
+												rotation: 0,
+												zIndex: 1,
+												visible: true,
+												label: "Group",
+											}
 									: {
 											id: crypto.randomUUID(),
 											type: "line",

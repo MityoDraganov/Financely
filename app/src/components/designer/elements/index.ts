@@ -7,3 +7,4 @@ export { default as IconElement, IconProperties } from "./icon";
 export { default as InputElement, InputProperties } from "./input";
 export { default as TableElement, TableProperties } from "./table";
 export { default as PathElement, PathProperties } from "./path";
+export { default as GroupElement, GroupProperties } from "./group";
