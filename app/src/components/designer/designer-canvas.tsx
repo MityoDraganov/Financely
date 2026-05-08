@@ -170,6 +170,23 @@ function getElementWrapperBackgroundColor(element: TemplateElement): string | un
 	return undefined;
 }
 
+function resolveGroupFillBackground(cssColor: string | undefined): string | undefined {
+	const raw = cssColor?.trim();
+	if (!raw) return undefined;
+	return raw;
+}
+
+/** Lower z-index first; same z-index → groups before other types so group fills paint beneath siblings. */
+function sortElementsForPaintOrder(elements: TemplateElement[]): TemplateElement[] {
+	return [...elements].sort((a, b) => {
+		const za = a.zIndex ?? 10;
+		const zb = b.zIndex ?? 10;
+		if (za !== zb) return za - zb;
+		const rank = (t: TemplateElement["type"]) => (t === "group" ? 0 : 1);
+		return rank(a.type) - rank(b.type);
+	});
+}
+
 export function DesignerCanvas({
 	template,
 	draftElements,
@@ -303,8 +320,31 @@ export function DesignerCanvas({
 	}, [onLassoSelect, state.zoom, isPathMode]);
 
 	const renderReferenceLayer = (layerElements: TemplateElement[]) => (
-						layerElements.map((el: TemplateElement) => {
-					if (el.visible === false || el.type === "group") return null;
+						sortElementsForPaintOrder(layerElements).map((el: TemplateElement) => {
+					if (el.visible === false) return null;
+					if (el.type === "group") {
+						const g = el as Extract<TemplateElement, { type: "group" }>;
+						const groupBg = resolveGroupFillBackground(g.backgroundColor);
+						return (
+							<div
+								key={el.id}
+								className="absolute select-none"
+								style={{
+									left: el.x * state.zoom,
+									top: el.y * state.zoom,
+									width: el.width * state.zoom,
+									height: el.height * state.zoom,
+									transform: `rotate(${el.rotation}deg)`,
+									zIndex: el.zIndex ?? 0,
+									opacity: previewMode ? 1 : 0.4,
+									pointerEvents: "none",
+									backgroundColor: groupBg,
+								}}
+							>
+								<GroupElement element={g} previewMode={previewMode} />
+							</div>
+						);
+					}
 					const pathElement = el.type === "path" ? (el as Extract<TemplateElement, { type: "path" }>) : null;
 					const elementPaddingCss = getElementPaddingCss(el);
 					const elementBorderRadiusCss = getElementBorderRadiusCss(el);
@@ -404,7 +444,7 @@ export function DesignerCanvas({
 	);
 
 	const renderInteractiveLayer = (layerElements: TemplateElement[]) => (
-						layerElements.map((el: TemplateElement) => {
+						sortElementsForPaintOrder(layerElements).map((el: TemplateElement) => {
 					const isRequiredField = elementIsRequired({
 						fieldId: (el as { fieldId?: string }).fieldId,
 						binding: (el as { binding?: string }).binding,
@@ -414,6 +454,12 @@ export function DesignerCanvas({
 					const elementPaddingCss = getElementPaddingCss(el);
 					const elementBorderRadiusCss = getElementBorderRadiusCss(el);
 					const elementWrapperBackgroundColor = getElementWrapperBackgroundColor(el);
+					const groupWrapperBackground =
+						el.type === "group"
+							? resolveGroupFillBackground(
+									(el as Extract<TemplateElement, { type: "group" }>).backgroundColor,
+								)
+							: undefined;
 					const pathElement = el.type === "path" ? (el as Extract<TemplateElement, { type: "path" }>) : null;
 					const isPathEditing = pathElement != null && path.editingPathElementId === el.id;
 					const pathSubpaths = pathElement?.subpaths ?? [];
@@ -455,7 +501,8 @@ export function DesignerCanvas({
 										msUserSelect: "none",
 										boxSizing: "border-box",
 										padding: elementPaddingCss,
-										backgroundColor: elementWrapperBackgroundColor,
+										backgroundColor:
+											groupWrapperBackground ?? elementWrapperBackgroundColor,
 										borderRadius: elementBorderRadiusCss,
 										overflow: el.type === "table"
 											? "visible"
@@ -730,7 +777,10 @@ export function DesignerCanvas({
 										);
 									})()}
 									{el.type === "group" && (
-										<GroupElement previewMode={previewMode} />
+										<GroupElement
+											element={el as Extract<TemplateElement, { type: "group" }>}
+											previewMode={previewMode}
+										/>
 									)}
 									{pathElement && (
 										<div className="absolute inset-0">

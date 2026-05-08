@@ -1109,10 +1109,29 @@ export function renderTemplateElement(
 	el: TemplateElement,
 	renderContext: RenderContext
 ): React.ReactNode {
-	// Group containers are visual-only in the designer; never rendered in preview/PDF
-	if (el.type === "group") return null;
-
 	const { context, page, pageIndex, pageSize, templateElements, margins, isBackground } = renderContext;
+
+	if (el.type === "group") {
+		const g = el as Extract<TemplateElement, { type: "group" }>;
+		if (!g.backgroundColor) return null;
+		const elementSlice = isBackground ? undefined : page.elementSlices[el.id];
+		const adjustedY = isBackground
+			? el.y
+			: (page.elementPositions[el.id] ??
+				calculateAdjustedY(el, templateElements, context, pageSize, margins));
+		const style = calculateElementStyle(el, adjustedY, pageIndex, pageSize, margins, elementSlice);
+		return (
+			<div
+				style={{
+					...style,
+					backgroundColor: g.backgroundColor,
+					borderRadius: 4,
+					pointerEvents: "none",
+				}}
+			/>
+		);
+	}
+
 	// page is accessed via renderContext in renderTableElement
 
 	// Background elements are positioned at their stored coordinates, not paginated

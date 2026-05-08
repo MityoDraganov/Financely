@@ -63,6 +63,10 @@ import {
 	setLockSelection,
 	syncGroupBoundingBoxes,
 	ungroupSelection,
+	computeNestPositionInsideGroup,
+	reorderSidebarSiblings,
+	moveElementToParentAtIndex,
+	type SidebarScope,
 	type AlignMode,
 	type Bounds,
 	type ClipboardPayload,
@@ -152,14 +156,28 @@ function sanitizeForRealtimeValue<T>(value: T, fallback?: unknown): T {
 	return value;
 }
 
-/** Layout-only updates skip traversing groups — avoids heavy work on text/typography edits. */
-function partialTouchesElementBounds(partial: Partial<TemplateElement>): boolean {
-	return (
+/** Updates that change frames or table vertical size must refresh group bounding boxes. */
+function partialRequiresGroupBoundsSync(partial: Partial<TemplateElement>): boolean {
+	if (
 		partial.x !== undefined ||
 		partial.y !== undefined ||
 		partial.width !== undefined ||
 		partial.height !== undefined
-	);
+	) {
+		return true;
+	}
+	if ("innerPadding" in partial && partial.innerPadding !== undefined) {
+		return true;
+	}
+	const keys = Object.keys(partial);
+	const tableGrowthKeys = new Set([
+		"designRows",
+		"rowHeight",
+		"headerHeight",
+		"showFooter",
+		"columns",
+	]);
+	return keys.some((k) => tableGrowthKeys.has(k));
 }
 
 export default function TemplateDesignerPage() {
@@ -2016,17 +2034,19 @@ export default function TemplateDesignerPage() {
 
 	function addElement(
 		kind: TemplateElement["type"],
-		at?: { x: number; y: number }
+		at?: { x: number; y: number },
+		options?: { groupId?: string }
 	) {
 		if (!currentTemplate) return;
 		debugLog("[ADD] addElement called", {
 			kind,
 			at,
+			groupId: options?.groupId,
 			templateId: currentTemplate.id,
 		});
 
 		// Generate default binding based on element type and existing elements
-		const existingElements = currentTemplate.elements ?? [];
+		const existingElements = getWorkingElements();
 		const elementsOfSameType = existingElements.filter(el => el.type === kind);
 		const defaultBinding = elementsOfSameType.length === 0 
 			? kind 
@@ -2351,20 +2371,30 @@ export default function TemplateDesignerPage() {
 				boundedSizeElement.width,
 				boundedSizeElement.height
 			);
-			const nextElement = {
+			let finalized: TemplateElement = {
 				...boundedSizeElement,
 				x: clampedAt.x,
 				y: clampedAt.y,
 			} as TemplateElement;
-		const next = [...(currentTemplate?.elements ?? []), nextElement];
-		debugLog("[ADD] next elements length", next.length);
-		// optimistic UI update so drop shows immediately
-		draftRef.current = next;
-		setDraftElements(next);
-		setState((s: DesignerState) => ({
-			...s,
-			selectedElementIds: [nextElement.id],
-		}));
+
+			if (options?.groupId) {
+				const nestAt = computeNestPositionInsideGroup(existingElements, options.groupId);
+				finalized = {
+					...finalized,
+					groupId: options.groupId,
+					x: nestAt.x,
+					y: nestAt.y,
+				} as TemplateElement;
+			}
+
+			const base = getWorkingElements();
+			const next = syncGroupBoundingBoxes([...base, finalized]);
+			debugLog("[ADD] next elements length", next.length);
+			setWorkingDraftElements(next);
+			setState((s: DesignerState) => ({
+				...s,
+				selectedElementIds: [finalized.id],
+			}));
 		// Don't save automatically - user will save via properties panel
 	}
 
@@ -2533,7 +2563,7 @@ export default function TemplateDesignerPage() {
 					: el
 		);
 		// Update ref synchronously (sync group bounding boxes after child moves)
-		const nextWithGroups = partialTouchesElementBounds(partial)
+		const nextWithGroups = partialRequiresGroupBoundsSync(partial)
 			? syncGroupBoundingBoxes(next)
 			: next;
 		if (isBackgroundMode) {
@@ -3935,40 +3965,38 @@ export default function TemplateDesignerPage() {
 		toast.success(t('designer.duplicateSuccess'));
 	}
 
-	function reorderElementsByLayer(fromIndex: number, toIndex: number) {
+	function reorderSidebarSiblingsHandler(
+		scope: SidebarScope,
+		fromIndex: number,
+		toIndex: number,
+	) {
 		if (!currentTemplate) return;
-		const base = draftElements ?? currentTemplate.elements ?? [];
-		if (base.length < 2) return;
-		if (fromIndex < 0 || toIndex < 0 || fromIndex >= base.length || toIndex >= base.length) return;
-		if (fromIndex === toIndex) return;
-
-		const ordered = base
-			.map((el, index) => ({ el, index }))
-			.sort((a, b) => {
-				const aZ = a.el.zIndex ?? 0;
-				const bZ = b.el.zIndex ?? 0;
-				if (aZ !== bZ) return bZ - aZ;
-				return b.index - a.index;
-			});
-
-		const reordered = [...ordered];
-		const [movedEntry] = reordered.splice(fromIndex, 1);
-		if (!movedEntry) return;
-		reordered.splice(toIndex, 0, movedEntry);
-
-		const total = reordered.length;
-		const zIndexById = new Map<string, number>();
-		reordered.forEach((entry, index) => {
-			zIndexById.set(entry.el.id, total - index);
-		});
-
-		const next = base.map((el) => ({
-			...el,
-			zIndex: zIndexById.get(el.id) ?? (el.zIndex ?? 0),
-		}));
-
+		const base = getWorkingElements();
+		const next = reorderSidebarSiblings(base, scope, fromIndex, toIndex);
+		if (!next) return;
 		applyCommandResult({
 			nextElements: next,
+			nextSelectedIds: selectedElementIdsRef.current ?? [],
+		});
+	}
+
+	function moveElementInSidebarTree(
+		elementId: string,
+		parentGroupId: string | undefined,
+		insertIndex: number,
+	) {
+		if (!currentTemplate) return;
+		const base = getWorkingElements();
+		const next = moveElementToParentAtIndex(
+			base,
+			elementId,
+			parentGroupId,
+			insertIndex,
+		);
+		if (!next) return;
+		const synced = syncGroupBoundingBoxes(next);
+		applyCommandResult({
+			nextElements: synced,
 			nextSelectedIds: selectedElementIdsRef.current ?? [],
 		});
 	}
@@ -4343,7 +4371,11 @@ export default function TemplateDesignerPage() {
 			onHoverElement={setHoveredElementId}
 			onDuplicateElement={duplicateElement}
 			onDeleteElement={deleteElement}
-			onReorderElements={reorderElementsByLayer}
+			onReorderSidebarSiblings={reorderSidebarSiblingsHandler}
+			onMoveElementInTree={moveElementInSidebarTree}
+			onAddElementToGroup={(kind, groupId) =>
+				addElement(kind, undefined, { groupId })
+			}
 			complianceStatus={complianceStatus}
 			onAddRequiredElement={addRequiredElement}
 			elementIsRequired={elementIsRequired}

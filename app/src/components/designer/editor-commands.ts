@@ -1,4 +1,8 @@
 import { TemplateElement } from "@/core";
+import { normalizeTableTextBehavior } from "@/utils/table-text-behavior";
+
+/** Bottom hint strip in designer `TableElement` (`text-[10px]` + `p-2`). Group bounds must include it. */
+const TABLE_EDITOR_HINT_STRIP_HEIGHT = 36;
 
 export type Bounds = {
 	left: number;
@@ -23,6 +27,69 @@ export type ClipboardPayload = {
 	elements: TemplateElement[];
 	origin: { x: number; y: number };
 };
+
+export const DEFAULT_GROUP_INNER_PADDING = {
+	top: 12,
+	right: 12,
+	bottom: 12,
+	left: 12,
+} as const;
+
+export function resolveGroupInnerPadding(
+	group: Extract<TemplateElement, { type: "group" }>
+): { top: number; right: number; bottom: number; left: number } {
+	return group.innerPadding ?? { ...DEFAULT_GROUP_INNER_PADDING };
+}
+
+/** Height used for layout (tables grow with design rows / footer). */
+export function getTemplateElementVisualHeight(el: TemplateElement): number {
+	if (el.type === "table") {
+		const tbl = el;
+		const rowCount = Math.max(1, tbl.designRows?.length ?? 1);
+		const footerExtra = tbl.showFooter ? tbl.rowHeight : 0;
+		let bodyHeight = tbl.rowHeight * rowCount;
+		const rowBehavior = normalizeTableTextBehavior(tbl.rowStyle?.textBehavior, "wrap");
+		if (rowBehavior.mode === "wrap" || rowBehavior.mode === "break-words") {
+			bodyHeight += tbl.rowHeight;
+		}
+		return (
+			tbl.headerHeight +
+			bodyHeight +
+			footerExtra +
+			TABLE_EDITOR_HINT_STRIP_HEIGHT
+		);
+	}
+	return el.height;
+}
+
+/** Position for a new child inside a group: top-left of padded interior, or below existing stack. */
+export function computeNestPositionInsideGroup(
+	elements: TemplateElement[],
+	groupId: string
+): { x: number; y: number } {
+	const group = elements.find(
+		(e) => e.id === groupId && e.type === "group"
+	) as Extract<TemplateElement, { type: "group" }> | undefined;
+	if (!group) {
+		return { x: 60, y: 80 };
+	}
+	const pad = resolveGroupInnerPadding(group);
+	const innerLeft = group.x + pad.left;
+	const innerTop = group.y + pad.top;
+	const children = elements.filter((e) => e.groupId === groupId);
+	if (children.length === 0) {
+		return { x: innerLeft, y: innerTop };
+	}
+	let maxBottom = innerTop;
+	for (const c of children) {
+		const bottom = c.y + getTemplateElementVisualHeight(c);
+		if (bottom > maxBottom) {
+			maxBottom = bottom;
+		}
+	}
+	const gap = 8;
+	return { x: innerLeft, y: maxBottom + gap };
+}
 
 function shallowCloneElements(elements: TemplateElement[]): TemplateElement[] {
 	return elements.map((el) => ({ ...el }));
@@ -424,6 +491,130 @@ export function ungroupSelection(
 		);
 }
 
+export type SidebarScope = "root" | { groupId: string };
+
+export function sortElementsByZDescending(elements: TemplateElement[]): TemplateElement[] {
+	return [...elements]
+		.map((el, index) => ({ el, index }))
+		.sort((a, b) => {
+			const aZ = a.el.zIndex ?? 0;
+			const bZ = b.el.zIndex ?? 0;
+			if (aZ !== bZ) return bZ - aZ;
+			return a.index - b.index;
+		})
+		.map(({ el }) => el);
+}
+
+/** Root layer: no parent or broken group reference. */
+export function isRootLayerElement(elements: TemplateElement[], el: TemplateElement): boolean {
+	if (el.groupId == null) return true;
+	const parent = elements.find((e) => e.id === el.groupId && e.type === "group");
+	return parent == null;
+}
+
+export function getSidebarSiblings(elements: TemplateElement[], scope: SidebarScope): TemplateElement[] {
+	if (scope === "root") {
+		return sortElementsByZDescending(elements.filter((el) => isRootLayerElement(elements, el)));
+	}
+	return sortElementsByZDescending(elements.filter((el) => el.groupId === scope.groupId));
+}
+
+export function collectSubtreeDescendantIds(elements: TemplateElement[], rootId: string): Set<string> {
+	const out = new Set<string>();
+	const queue = [rootId];
+	while (queue.length > 0) {
+		const id = queue.shift();
+		if (!id) continue;
+		for (const el of elements) {
+			if (el.groupId !== id) continue;
+			if (out.has(el.id)) continue;
+			out.add(el.id);
+			if (el.type === "group") queue.push(el.id);
+		}
+	}
+	return out;
+}
+
+export function assignElementParentGroup(
+	elements: TemplateElement[],
+	elementId: string,
+	newGroupId: string | undefined
+): TemplateElement[] | null {
+	const el = elements.find((e) => e.id === elementId);
+	if (!el) return null;
+
+	if (newGroupId != null) {
+		const target = elements.find((e) => e.id === newGroupId && e.type === "group");
+		if (!target) return null;
+		if (newGroupId === elementId) return null;
+		if (el.type === "group") {
+			const desc = collectSubtreeDescendantIds(elements, elementId);
+			if (desc.has(newGroupId)) return null;
+		}
+	}
+
+	let nextEl: TemplateElement =
+		newGroupId == null
+			? ({ ...el, groupId: undefined } as TemplateElement)
+			: ({ ...el, groupId: newGroupId } as TemplateElement);
+
+	if (newGroupId != null) {
+		const nestAt = computeNestPositionInsideGroup(elements, newGroupId);
+		nextEl = {
+			...nextEl,
+			x: nestAt.x,
+			y: nestAt.y,
+		} as TemplateElement;
+	}
+
+	return elements.map((e) => (e.id === elementId ? nextEl : e));
+}
+
+export function reorderSidebarSiblings(
+	elements: TemplateElement[],
+	scope: SidebarScope,
+	fromIndex: number,
+	toIndex: number
+): TemplateElement[] | null {
+	const siblings = getSidebarSiblings(elements, scope);
+	if (fromIndex < 0 || toIndex < 0 || fromIndex >= siblings.length || toIndex >= siblings.length) {
+		return null;
+	}
+	if (fromIndex === toIndex) return elements;
+
+	const reordered = [...siblings];
+	const [moved] = reordered.splice(fromIndex, 1);
+	reordered.splice(toIndex, 0, moved);
+
+	const zMultiset = siblings.map((s) => s.zIndex ?? 0).sort((a, b) => b - a);
+	const idToZ = new Map(reordered.map((s, i) => [s.id, zMultiset[i] ?? 1]));
+
+	return elements.map((el) => {
+		const nz = idToZ.get(el.id);
+		if (nz === undefined) return el;
+		return { ...el, zIndex: nz };
+	});
+}
+
+export function moveElementToParentAtIndex(
+	elements: TemplateElement[],
+	elementId: string,
+	newGroupId: string | undefined,
+	insertIndex: number
+): TemplateElement[] | null {
+	const assigned = assignElementParentGroup(elements, elementId, newGroupId);
+	if (!assigned) return null;
+	const scope: SidebarScope = newGroupId == null ? "root" : { groupId: newGroupId };
+	const siblingsAfter = getSidebarSiblings(assigned, scope);
+	const newIdx = siblingsAfter.findIndex((s) => s.id === elementId);
+	if (newIdx < 0) return null;
+	const clampedTo = Math.max(
+		0,
+		Math.min(insertIndex, siblingsAfter.length - 1),
+	);
+	return reorderSidebarSiblings(assigned, scope, newIdx, clampedTo);
+}
+
 export function syncGroupBoundingBoxes(elements: TemplateElement[]): TemplateElement[] {
 	const groupContainerIds = new Set(
 		elements.filter((el) => el.type === "group").map((el) => el.id)
@@ -442,11 +633,20 @@ export function syncGroupBoundingBoxes(elements: TemplateElement[]): TemplateEle
 		if (el.type !== "group") return el;
 		const children = childrenByGroup.get(el.id);
 		if (!children || children.length === 0) return el;
-		const x = Math.min(...children.map((c) => c.x));
-		const y = Math.min(...children.map((c) => c.y));
+		const left = Math.min(...children.map((c) => c.x));
+		const top = Math.min(...children.map((c) => c.y));
 		const right = Math.max(...children.map((c) => c.x + c.width));
-		const bottom = Math.max(...children.map((c) => c.y + c.height));
-		return { ...el, x, y, width: right - x, height: bottom - y };
+		const bottom = Math.max(
+			...children.map((c) => c.y + getTemplateElementVisualHeight(c))
+		);
+		const pad = resolveGroupInnerPadding(el);
+		return {
+			...el,
+			x: left - pad.left,
+			y: top - pad.top,
+			width: right - left + pad.left + pad.right,
+			height: bottom - top + pad.top + pad.bottom,
+		};
 	});
 }
 

@@ -438,9 +438,20 @@ export const pathElementSchema = templateElementBaseSchema.extend({
   scaleStroke: z.boolean().default(false),
 });
 
+export const groupInnerPaddingSchema = z.object({
+  top: z.number().min(0).max(200).default(12),
+  right: z.number().min(0).max(200).default(12),
+  bottom: z.number().min(0).max(200).default(12),
+  left: z.number().min(0).max(200).default(12),
+});
+
 export const groupElementSchema = templateElementBaseSchema.extend({
   type: z.literal("group"),
   label: z.string().optional(),
+  /** Fill behind nested children (invoice PDF / designer). */
+  backgroundColor: z.string().optional(),
+  /** Space between the group’s outer edge and the bounding box of nested elements. */
+  innerPadding: groupInnerPaddingSchema.optional(),
 });
 
 export const templateElementSchema = z.discriminatedUnion("type", [

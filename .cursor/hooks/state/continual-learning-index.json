@@ -1,17 +1,25 @@
 {
   "version": 1,
   "transcripts": {
-    "/Users/mityodraganov/.cursor/projects/Users-mityodraganov-Documents-GitHub-Financely/agent-transcripts/2315b0a7-6997-4561-b54e-775a8deb2363/2315b0a7-6997-4561-b54e-775a8deb2363.jsonl": {
-      "mtime": 1778262163,
-      "lineCount": 68
-    },
     "/Users/mityodraganov/.cursor/projects/Users-mityodraganov-Documents-GitHub-Financely/agent-transcripts/2088bd9a-76e8-451e-b67e-9d94b32e019c/2088bd9a-76e8-451e-b67e-9d94b32e019c.jsonl": {
       "mtime": 1778261082,
-      "lineCount": 19
+      "lineCount": 20
+    },
+    "/Users/mityodraganov/.cursor/projects/Users-mityodraganov-Documents-GitHub-Financely/agent-transcripts/2315b0a7-6997-4561-b54e-775a8deb2363/2315b0a7-6997-4561-b54e-775a8deb2363.jsonl": {
+      "mtime": 1778262702,
+      "lineCount": 82
+    },
+    "/Users/mityodraganov/.cursor/projects/Users-mityodraganov-Documents-GitHub-Financely/agent-transcripts/9a714258-9e26-45f3-b273-677cf03fe764/9a714258-9e26-45f3-b273-677cf03fe764.jsonl": {
+      "mtime": 1778276360,
+      "lineCount": 217
     },
     "/Users/mityodraganov/.cursor/projects/Users-mityodraganov-Documents-GitHub-Financely/agent-transcripts/adeac26f-7343-4e71-a998-ca81060df551/adeac26f-7343-4e71-a998-ca81060df551.jsonl": {
       "mtime": 1778259766,
-      "lineCount": 21
+      "lineCount": 22
+    },
+    "/Users/mityodraganov/.cursor/projects/Users-mityodraganov-Documents-GitHub-Financely/agent-transcripts/b0ca3d43-1abb-44cd-981c-feffec195b66/b0ca3d43-1abb-44cd-981c-feffec195b66.jsonl": {
+      "mtime": 1778274572,
+      "lineCount": 59
     }
   }
 }
