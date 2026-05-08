@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -77,9 +77,14 @@ export function TextProperties({ element, onChange, isNarrow }: TextPropertiesPr
 	const { data: currentOrganization } = useCurrentOrganization();
 	const t = element as Extract<TemplateElement, { type: "text" }>;
 
-	// Keep effect for any future external sync needs
-	useEffect(() => {}, [t.binding]);
-	
+	const [textDraft, setTextDraft] = useState(() => t.text ?? "");
+
+	// Reset draft when selection or binding changes — never sync from `t.text` alone or commits
+	// that lag local typing will overwrite the field with a stale value and drop characters.
+	useEffect(() => {
+		const next = t.text ?? "";
+		setTextDraft(next);
+	}, [element.id, t.binding]);
 	// Common position/size controls
 	const common = (
 		<section className={`${components.section} ${separators.subsectionDivider}`}>
@@ -136,24 +141,12 @@ export function TextProperties({ element, onChange, isNarrow }: TextPropertiesPr
 					<div className={components.field}>
 						<Label className={typography.fieldLabel}>{translate('designer.elementProperties.text.text')}</Label>
 						<Input
-							value={t.text ?? ""}
-							onChange={(e) =>
-								onChange({
-									id: element.id,
-									type: "text",
-									x: element.x,
-									y: element.y,
-									width: element.width,
-									height: element.height,
-									rotation: element.rotation,
-									zIndex: element.zIndex,
-									visible: element.visible,
-									text: e.target.value,
-									binding: t.binding,
-									typography: t.typography,
-									format: t.format,
-								})
-							}
+							value={textDraft}
+							onChange={(e) => {
+								const v = e.target.value;
+								setTextDraft(v);
+								onChange({ text: v });
+							}}
 							className={components.inputHeight}
 						/>
 					</div>

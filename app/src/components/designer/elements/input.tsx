@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -53,7 +54,13 @@ export function InputProperties({ element, onChange, isNarrow, allElements = [] 
 	const { t } = useTranslation();
 	const { data: currentOrganization } = useCurrentOrganization();
 	const inp = element;
-	
+
+	const [placeholderDraft, setPlaceholderDraft] = useState(() => inp.placeholder);
+
+	// Same as text content: do not sync from props on every parent commit or lagging values revert typing.
+	useEffect(() => {
+		setPlaceholderDraft(inp.placeholder);
+	}, [element.id]);
 	// Common position/size controls
 	const common = (
 		<section className={`${components.section} ${separators.subsectionDivider}`}>
@@ -111,25 +118,12 @@ export function InputProperties({ element, onChange, isNarrow, allElements = [] 
 						<Label className={typography.fieldLabel}>{t('designer.elementProperties.input.placeholder')}</Label>
 						<Input
 							placeholder={t('designer.elementProperties.input.placeholder')}
-							value={inp.placeholder}
-							onChange={(e) =>
-								onChange({
-									id: element.id,
-									type: "input",
-									x: element.x,
-									y: element.y,
-									width: element.width,
-									height: element.height,
-									rotation: element.rotation,
-									zIndex: element.zIndex,
-									visible: element.visible,
-									placeholder: e.target.value,
-									variant: inp.variant,
-									align: inp.align,
-									fontFamily: inp.fontFamily,
-									binding: inp.binding,
-								})
-							}
+							value={placeholderDraft}
+							onChange={(e) => {
+								const v = e.target.value;
+								setPlaceholderDraft(v);
+								onChange({ placeholder: v });
+							}}
 							className={components.inputHeight}
 						/>
 					</div>

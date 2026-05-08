@@ -152,6 +152,16 @@ function sanitizeForRealtimeValue<T>(value: T, fallback?: unknown): T {
 	return value;
 }
 
+/** Layout-only updates skip traversing groups — avoids heavy work on text/typography edits. */
+function partialTouchesElementBounds(partial: Partial<TemplateElement>): boolean {
+	return (
+		partial.x !== undefined ||
+		partial.y !== undefined ||
+		partial.width !== undefined ||
+		partial.height !== undefined
+	);
+}
+
 export default function TemplateDesignerPage() {
 	const { t } = useTranslation();
 	const { id: templateIdFromUrl } = useParams<{ id?: string }>();
@@ -2523,7 +2533,9 @@ export default function TemplateDesignerPage() {
 					: el
 		);
 		// Update ref synchronously (sync group bounding boxes after child moves)
-		const nextWithGroups = syncGroupBoundingBoxes(next);
+		const nextWithGroups = partialTouchesElementBounds(partial)
+			? syncGroupBoundingBoxes(next)
+			: next;
 		if (isBackgroundMode) {
 			draftBackgroundRef.current = nextWithGroups;
 			setDraftBackgroundElements(nextWithGroups);
