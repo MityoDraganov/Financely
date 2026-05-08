@@ -1113,7 +1113,7 @@ export function renderTemplateElement(
 
 	if (el.type === "group") {
 		const g = el as Extract<TemplateElement, { type: "group" }>;
-		if (!g.backgroundColor) return null;
+		const fill = g.backgroundColor?.trim();
 		const elementSlice = isBackground ? undefined : page.elementSlices[el.id];
 		const adjustedY = isBackground
 			? el.y
@@ -1124,8 +1124,8 @@ export function renderTemplateElement(
 			<div
 				style={{
 					...style,
-					backgroundColor: g.backgroundColor,
-					borderRadius: 4,
+					...(fill ? { backgroundColor: fill } : {}),
+					borderRadius: getElementBorderRadiusCss(el),
 					pointerEvents: "none",
 				}}
 			/>

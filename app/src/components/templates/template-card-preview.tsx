@@ -1,7 +1,7 @@
 import { Component, ErrorInfo, ReactNode } from "react";
 import { FileText } from "lucide-react";
 import type { Template } from "@/core/entities/template";
-import { PAGE_SIZES } from "@/utils/template-preview-utils";
+import { PAGE_SIZES, sortTemplateElementsForPaintOrder } from "@/utils/template-preview-utils";
 import { renderTemplateElement } from "./template-element-renderers";
 import { paginateTemplate } from "@/utils/template-pagination";
 import { resolveTemplateMarginsPx } from "@/utils/print-margins";
@@ -134,12 +134,31 @@ export function TemplateCardPreview({ template }: TemplateCardPreviewProps) {
             }}
             className="bg-white dark:bg-neutral-900"
           >
-            {firstPage.backgroundElements.map((el) =>
-              renderTemplateElement(el, renderContext)
-            )}
-            {firstPage.elements.map((el) =>
-              renderTemplateElement(el, renderContext)
-            )}
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                zIndex: 0,
+                isolation: "isolate",
+                pointerEvents: "none",
+              }}
+            >
+              {sortTemplateElementsForPaintOrder(firstPage.backgroundElements).map((el) =>
+                renderTemplateElement(el, { ...renderContext, isBackground: true })
+              )}
+            </div>
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                zIndex: 100,
+                isolation: "isolate",
+              }}
+            >
+              {sortTemplateElementsForPaintOrder(firstPage.elements).map((el) =>
+                renderTemplateElement(el, renderContext)
+              )}
+            </div>
           </div>
         </div>
       );

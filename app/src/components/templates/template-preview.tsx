@@ -6,7 +6,7 @@
 import React from "react";
 import type { Template } from "@/core/entities/template";
 import { paginateTemplate, type RenderPage } from "@/utils/template-pagination";
-import { PAGE_SIZES } from "@/utils/template-preview-utils";
+import { PAGE_SIZES, sortTemplateElementsForPaintOrder } from "@/utils/template-preview-utils";
 import { renderTemplateElement } from "./template-element-renderers";
 import { renderWatermark } from "./template-watermark";
 import { resolveTemplateMarginsPx } from "@/utils/print-margins";
@@ -123,13 +123,32 @@ export function TemplatePreview({
 						backfaceVisibility: "hidden",
 					}}
 				>
-					{watermarkElement}
-					{page.backgroundElements.map((el) =>
-						renderTemplateElement(el, { ...renderContext, isBackground: true })
-					)}
-					{page.elements.map((el) =>
-						renderTemplateElement(el, renderContext)
-					)}
+					<div
+						style={{
+							position: "absolute",
+							inset: 0,
+							zIndex: 0,
+							isolation: "isolate",
+							pointerEvents: "none",
+						}}
+					>
+						{watermarkElement}
+						{sortTemplateElementsForPaintOrder(page.backgroundElements).map((el) =>
+							renderTemplateElement(el, { ...renderContext, isBackground: true })
+						)}
+					</div>
+					<div
+						style={{
+							position: "absolute",
+							inset: 0,
+							zIndex: 100,
+							isolation: "isolate",
+						}}
+					>
+						{sortTemplateElementsForPaintOrder(page.elements).map((el) =>
+							renderTemplateElement(el, renderContext)
+						)}
+					</div>
 				</div>
 			</div>
 		);

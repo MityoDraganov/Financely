@@ -166,9 +166,9 @@ export function paginateTemplate(
 	const bottomMargin = margins.bottom;
 	const usableHeight = pageHeight - topMargin - bottomMargin;
 
-	// Sort all content elements by Y position, excluding group containers (visual-only)
+	// Sort all content elements by Y position (groups included — backdrop must paginate with layout)
 	const sortedElements = [...(template.elements ?? [])]
-		.filter((el) => el.visible && el.type !== "group")
+		.filter((el) => el.visible)
 		.sort((a, b) => {
 			if (a.y !== b.y) return a.y - b.y;
 			return (a.zIndex ?? 0) - (b.zIndex ?? 0);
@@ -363,7 +363,11 @@ export function paginateTemplate(
 
 			// Background effects should continue across page boundaries instead of
 			// jumping to just the next page.
-			if (renderElement.type === "box" || renderElement.type === "path") {
+			if (
+				renderElement.type === "box" ||
+				renderElement.type === "path" ||
+				renderElement.type === "group"
+			) {
 				let pageIndex = 0;
 				let pageStartY = topMargin;
 

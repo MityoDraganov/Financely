@@ -1,6 +1,7 @@
 /**
  * Utility functions for template preview rendering
  */
+import type { TemplateElement } from "@/core/entities/template";
 import { PAGE_SIZES_PX } from "./page-size-presets";
 
 /**
@@ -105,3 +106,19 @@ export const PAGE_SIZES = {
 } as const;
 
 export type PageSize = keyof typeof PAGE_SIZES;
+
+/**
+ * Paint order within one layer: lower z-index first; equal z → groups before other types
+ * (matches designer canvas stacking).
+ */
+export function sortTemplateElementsForPaintOrder(
+	elements: TemplateElement[]
+): TemplateElement[] {
+	return [...elements].sort((a, b) => {
+		const za = a.zIndex ?? 0;
+		const zb = b.zIndex ?? 0;
+		if (za !== zb) return za - zb;
+		const rank = (t: TemplateElement["type"]) => (t === "group" ? 0 : 1);
+		return rank(a.type) - rank(b.type);
+	});
+}
