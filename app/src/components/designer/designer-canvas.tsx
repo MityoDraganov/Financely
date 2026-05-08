@@ -209,7 +209,10 @@ export function DesignerCanvas({
 	const path = usePathEditing();
 	const canvasBoundsRef = useRef<HTMLDivElement | null>(null);
 	const contextMenuPagePosRef = useRef<{ x: number; y: number } | null>(null);
-	const elements = draftElements ?? template?.elements ?? [];
+	const contentElements = draftElements ?? template?.elements ?? [];
+	const backgroundLayerElements = backgroundElements;
+	const activeElements =
+		designerMode === "background" ? backgroundLayerElements : contentElements;
 	const isPathMode = Boolean(path.editingPathElementId);
 	const [lassoRect, setLassoRect] = useState<{
 		x: number;
@@ -239,11 +242,11 @@ export function DesignerCanvas({
 		if (path.editingPathElementId) return path.editingPathElementId;
 		if ((state.selectedElementIds?.length ?? 0) !== 1) return undefined;
 		const selectedId = state.selectedElementIds?.[0];
-		const selectedElement = elements.find((el) => el.id === selectedId);
+		const selectedElement = activeElements.find((el) => el.id === selectedId);
 		return selectedElement?.type === "path" ? selectedElement.id : undefined;
 	})();
 	const selectedPathElement = selectedPathElementId
-		? (elements.find((el) => el.id === selectedPathElementId && el.type === "path") as
+		? (activeElements.find((el) => el.id === selectedPathElementId && el.type === "path") as
 				| Extract<TemplateElement, { type: "path" }>
 				| undefined)
 		: undefined;
@@ -299,198 +302,8 @@ export function DesignerCanvas({
 		window.addEventListener("pointerup", handleUp);
 	}, [onLassoSelect, state.zoom, isPathMode]);
 
-	return (
-		<ContextMenu>
-		<ContextMenuTrigger asChild>
-		<div
-			ref={canvasBoundsRef}
-			data-designer-canvas-bounds="true"
-			className="relative bg-muted/30 p-8"
-			onContextMenu={(e) => {
-				if (pageRef.current) {
-					const rect = pageRef.current.getBoundingClientRect();
-					contextMenuPagePosRef.current = {
-						x: (e.clientX - rect.left) / state.zoom,
-						y: (e.clientY - rect.top) / state.zoom,
-					};
-				}
-			}}
-			onDragOver={(e) => {
-				e.preventDefault();
-			}}
-			onDrop={(e) => {
-				e.preventDefault();
-			}}
-		>
-			<PathVectorHud
-				pathElementId={selectedPathElementId}
-				pathElement={selectedPathElement}
-				boundsRef={canvasBoundsRef}
-			/>
-			<div className="grid place-items-center min-h-full">
-				{!template && (
-					<div className="text-center text-muted-foreground p-8">
-						<div className="text-sm mb-2">
-							No template selected.
-						</div>
-						<div className="text-xs mb-4">
-							Select an existing template from the
-							dropdown above or create a new one to
-							start designing.
-						</div>
-						<Button
-							size="sm"
-							onClick={onCreateTemplate}
-						>
-							<Plus className="mr-1 h-4 w-4" /> Create template
-						</Button>
-					</div>
-				)}
-				{template && (
-					<div
-						ref={pageRef}
-						className={`bg-white dark:bg-neutral-900 shadow-2xl relative rounded-sm transition-all duration-300 hover:shadow-3xl isolate border-4 ${!previewMode ? "border-neutral-200 dark:border-neutral-700" : "border-transparent"}`}
-						onClick={previewMode ? undefined : () => {
-							// Deselect when clicking canvas; elements call stopPropagation so we only get here for empty space
-							// Skip deselect if a lasso drag just completed (click always fires after pointerup)
-							if (lassoOccurredRef.current) {
-								lassoOccurredRef.current = false;
-								return;
-							}
-							onSelectElement("");
-						}}
-						style={{
-							width: PAGE_WIDTH * state.zoom,
-							height: PAGE_HEIGHT * state.zoom,
-							position: "relative",
-							backgroundColor: template.pageSettings?.backgroundColor || undefined,
-						}}
-						onDragOver={previewMode ? undefined : onDragOver}
-						onDrop={previewMode ? undefined : onDrop}
-						onMouseMove={previewMode ? undefined : onMouseMove}
-						onPointerDown={previewMode ? undefined : startLasso}
-					>
-					{/* Preview overlay — blocks all pointer events on elements when in preview mode */}
-					{previewMode && <div className="absolute inset-0 z-[9999]" style={{ pointerEvents: "all" }} />}
-				{/* Grid */}
-				{!previewMode && state.showGrid !== false && (
-					<div
-						className="absolute inset-0 z-0 transition-opacity duration-150"
-						style={{
-							opacity: isPathMode ? 0.55 : 1,
-							backgroundSize: [
-								`${minorGridSize}px ${minorGridSize}px`,
-								`${minorGridSize}px ${minorGridSize}px`,
-							].join(", "),
-							backgroundImage: [
-								`linear-gradient(to right, ${gridColors.minor} 1px, transparent 1px)`,
-								`linear-gradient(to bottom, ${gridColors.minor} 1px, transparent 1px)`,
-							].join(", "),
-						}}
-						onDragOver={onDragOver}
-						onDrop={onDrop}
-					/>
-				)}
-				{!previewMode && (
-					<div
-						className="absolute pointer-events-none z-[2]"
-						style={{
-							left: printableArea.left,
-							top: printableArea.top,
-							width: printableArea.width,
-							height: printableArea.height,
-							border: "1px dashed rgba(99, 102, 241, 0.6)",
-							boxShadow: "0 0 0 9999px rgba(15, 23, 42, 0.03)",
-						}}
-					/>
-				)}
-				{template.referenceLayer?.assetUrl && template.referenceLayer.visible !== false && (
-					<div
-						className="absolute pointer-events-none"
-						style={{
-							left: (template.referenceLayer.offsetX ?? 0) * state.zoom,
-							top: (template.referenceLayer.offsetY ?? 0) * state.zoom,
-							width: PAGE_WIDTH * state.zoom,
-							height: PAGE_HEIGHT * state.zoom,
-							opacity: template.referenceLayer.opacity ?? 0.3,
-							transform: `scale(${template.referenceLayer.scale ?? 1}) rotate(${template.referenceLayer.rotation ?? 0}deg)`,
-							transformOrigin: "top left",
-							zIndex: 1,
-						}}
-					>
-						<img
-							src={template.referenceLayer.assetUrl}
-							alt="Template source reference"
-							className="w-full h-full object-contain"
-						/>
-					</div>
-				)}
-				{/* Snap guides */}
-				{!previewMode && snapGuides.map((guide, idx) => (
-					<div
-						key={`snap-${idx}`}
-						className="absolute pointer-events-none"
-						style={{
-							...(guide.type === "vertical"
-								? {
-										left: guide.position * state.zoom,
-										top: guide.start * state.zoom,
-										width: 1,
-										height: (guide.end - guide.start) * state.zoom,
-									}
-								: {
-										left: guide.start * state.zoom,
-										top: guide.position * state.zoom,
-										width: (guide.end - guide.start) * state.zoom,
-										height: 1,
-									}),
-							backgroundColor: guide.kind === "distance" ? "#ec4899" : "#8b5cf6",
-							boxShadow: "0 0 0 0.5px rgba(139, 92, 246, 0.5)",
-							zIndex: 9999,
-						}}
-					>
-						{guide.label && (
-							<span
-								className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] px-1 py-0.5 rounded bg-background border border-border text-foreground whitespace-nowrap"
-							>
-								{guide.label}
-							</span>
-						)}
-					</div>
-				))}
-				{!previewMode && lassoRect && (
-					<div
-						className="absolute pointer-events-none z-[10000]"
-						style={{
-							left: lassoRect.x * state.zoom,
-							top: lassoRect.y * state.zoom,
-							width: lassoRect.width * state.zoom,
-							height: lassoRect.height * state.zoom,
-							background: "rgba(99,102,241,0.08)",
-							border: "1.5px dashed rgba(99,102,241,0.85)",
-							borderRadius: 2,
-							boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.15)",
-						}}
-					/>
-				)}
-				{/* Live cursors - exclude current user's cursor */}
-				{activeUsers
-					.filter(user => user.uid !== currentUserId)
-					.map((user) => (
-						<LiveCursor
-							key={user.uid}
-							user={user}
-							zoom={state.zoom}
-						/>
-					))}
-				
-				{/* Watermark */}
-				<WatermarkRenderer template={template} zoom={state.zoom} />
-
-				{/* Background layer — always rendered below content */}
-				{/* z-index 0 container ensures background elements never appear above content regardless of individual el.zIndex */}
-				<div style={{ position: "absolute", inset: 0, zIndex: 0 }}>
-				{backgroundElements.map((el: TemplateElement) => {
+	const renderReferenceLayer = (layerElements: TemplateElement[]) => (
+						layerElements.map((el: TemplateElement) => {
 					if (el.visible === false || el.type === "group") return null;
 					const pathElement = el.type === "path" ? (el as Extract<TemplateElement, { type: "path" }>) : null;
 					const elementPaddingCss = getElementPaddingCss(el);
@@ -587,15 +400,11 @@ export function DesignerCanvas({
 							)}
 						</div>
 					);
-				})}
+				})
+	);
 
-				</div>
-
-				{/* Content layer — always rendered above background */}
-				{/* z-index 1 container guarantees content is above background regardless of individual el.zIndex */}
-				<div style={{ position: "absolute", inset: 0, zIndex: 1 }}>
-				{/* Active layer elements */}
-				{elements.map((el: TemplateElement) => {
+	const renderInteractiveLayer = (layerElements: TemplateElement[]) => (
+						layerElements.map((el: TemplateElement) => {
 					const isRequiredField = elementIsRequired({
 						fieldId: (el as { fieldId?: string }).fieldId,
 						binding: (el as { binding?: string }).binding,
@@ -1064,7 +873,219 @@ export function DesignerCanvas({
 							</ContextMenuContent>
 						</ContextMenu>
 					);
-				})}
+				})
+	);
+
+
+	return (
+		<ContextMenu>
+		<ContextMenuTrigger asChild>
+		<div
+			ref={canvasBoundsRef}
+			data-designer-canvas-bounds="true"
+			className="relative bg-muted/30 p-8"
+			onContextMenu={(e) => {
+				if (pageRef.current) {
+					const rect = pageRef.current.getBoundingClientRect();
+					contextMenuPagePosRef.current = {
+						x: (e.clientX - rect.left) / state.zoom,
+						y: (e.clientY - rect.top) / state.zoom,
+					};
+				}
+			}}
+			onDragOver={(e) => {
+				e.preventDefault();
+			}}
+			onDrop={(e) => {
+				e.preventDefault();
+			}}
+		>
+			<PathVectorHud
+				pathElementId={selectedPathElementId}
+				pathElement={selectedPathElement}
+				boundsRef={canvasBoundsRef}
+			/>
+			<div className="grid place-items-center min-h-full">
+				{!template && (
+					<div className="text-center text-muted-foreground p-8">
+						<div className="text-sm mb-2">
+							No template selected.
+						</div>
+						<div className="text-xs mb-4">
+							Select an existing template from the
+							dropdown above or create a new one to
+							start designing.
+						</div>
+						<Button
+							size="sm"
+							onClick={onCreateTemplate}
+						>
+							<Plus className="mr-1 h-4 w-4" /> Create template
+						</Button>
+					</div>
+				)}
+				{template && (
+					<div
+						ref={pageRef}
+						className={`bg-white dark:bg-neutral-900 shadow-2xl relative rounded-sm transition-all duration-300 hover:shadow-3xl isolate border-4 ${!previewMode ? "border-neutral-200 dark:border-neutral-700" : "border-transparent"}`}
+						onClick={previewMode ? undefined : () => {
+							// Deselect when clicking canvas; elements call stopPropagation so we only get here for empty space
+							// Skip deselect if a lasso drag just completed (click always fires after pointerup)
+							if (lassoOccurredRef.current) {
+								lassoOccurredRef.current = false;
+								return;
+							}
+							onSelectElement("");
+						}}
+						style={{
+							width: PAGE_WIDTH * state.zoom,
+							height: PAGE_HEIGHT * state.zoom,
+							position: "relative",
+							backgroundColor: template.pageSettings?.backgroundColor || undefined,
+						}}
+						onDragOver={previewMode ? undefined : onDragOver}
+						onDrop={previewMode ? undefined : onDrop}
+						onMouseMove={previewMode ? undefined : onMouseMove}
+						onPointerDown={previewMode ? undefined : startLasso}
+					>
+					{/* Preview overlay — blocks all pointer events on elements when in preview mode */}
+					{previewMode && <div className="absolute inset-0 z-[9999]" style={{ pointerEvents: "all" }} />}
+				{/* Grid */}
+				{!previewMode && state.showGrid !== false && (
+					<div
+						className="absolute inset-0 z-0 transition-opacity duration-150"
+						style={{
+							opacity: isPathMode ? 0.55 : 1,
+							backgroundSize: [
+								`${minorGridSize}px ${minorGridSize}px`,
+								`${minorGridSize}px ${minorGridSize}px`,
+							].join(", "),
+							backgroundImage: [
+								`linear-gradient(to right, ${gridColors.minor} 1px, transparent 1px)`,
+								`linear-gradient(to bottom, ${gridColors.minor} 1px, transparent 1px)`,
+							].join(", "),
+						}}
+						onDragOver={onDragOver}
+						onDrop={onDrop}
+					/>
+				)}
+				{!previewMode && (
+					<div
+						className="absolute pointer-events-none z-[2]"
+						style={{
+							left: printableArea.left,
+							top: printableArea.top,
+							width: printableArea.width,
+							height: printableArea.height,
+							border: "1px dashed rgba(99, 102, 241, 0.6)",
+							boxShadow: "0 0 0 9999px rgba(15, 23, 42, 0.03)",
+						}}
+					/>
+				)}
+				{template.referenceLayer?.assetUrl && template.referenceLayer.visible !== false && (
+					<div
+						className="absolute pointer-events-none"
+						style={{
+							left: (template.referenceLayer.offsetX ?? 0) * state.zoom,
+							top: (template.referenceLayer.offsetY ?? 0) * state.zoom,
+							width: PAGE_WIDTH * state.zoom,
+							height: PAGE_HEIGHT * state.zoom,
+							opacity: template.referenceLayer.opacity ?? 0.3,
+							transform: `scale(${template.referenceLayer.scale ?? 1}) rotate(${template.referenceLayer.rotation ?? 0}deg)`,
+							transformOrigin: "top left",
+							zIndex: 1,
+						}}
+					>
+						<img
+							src={template.referenceLayer.assetUrl}
+							alt="Template source reference"
+							className="w-full h-full object-contain"
+						/>
+					</div>
+				)}
+				{/* Snap guides */}
+				{!previewMode && snapGuides.map((guide, idx) => (
+					<div
+						key={`snap-${idx}`}
+						className="absolute pointer-events-none"
+						style={{
+							...(guide.type === "vertical"
+								? {
+										left: guide.position * state.zoom,
+										top: guide.start * state.zoom,
+										width: 1,
+										height: (guide.end - guide.start) * state.zoom,
+									}
+								: {
+										left: guide.start * state.zoom,
+										top: guide.position * state.zoom,
+										width: (guide.end - guide.start) * state.zoom,
+										height: 1,
+									}),
+							backgroundColor: guide.kind === "distance" ? "#ec4899" : "#8b5cf6",
+							boxShadow: "0 0 0 0.5px rgba(139, 92, 246, 0.5)",
+							zIndex: 9999,
+						}}
+					>
+						{guide.label && (
+							<span
+								className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] px-1 py-0.5 rounded bg-background border border-border text-foreground whitespace-nowrap"
+							>
+								{guide.label}
+							</span>
+						)}
+					</div>
+				))}
+				{!previewMode && lassoRect && (
+					<div
+						className="absolute pointer-events-none z-[10000]"
+						style={{
+							left: lassoRect.x * state.zoom,
+							top: lassoRect.y * state.zoom,
+							width: lassoRect.width * state.zoom,
+							height: lassoRect.height * state.zoom,
+							background: "rgba(99,102,241,0.08)",
+							border: "1.5px dashed rgba(99,102,241,0.85)",
+							borderRadius: 2,
+							boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.15)",
+						}}
+					/>
+				)}
+				{/* Live cursors - exclude current user's cursor */}
+				{activeUsers
+					.filter(user => user.uid !== currentUserId)
+					.map((user) => (
+						<LiveCursor
+							key={user.uid}
+							user={user}
+							zoom={state.zoom}
+						/>
+					))}
+				
+				{/* Watermark */}
+				<WatermarkRenderer template={template} zoom={state.zoom} />
+
+				{/* Background layer — fixed below content (z-0); active vs reference depends on mode */}
+				<div style={{ position: "absolute", inset: 0, zIndex: 0, isolation: "isolate" }}>
+				{designerMode === "background"
+					? renderInteractiveLayer(backgroundLayerElements)
+					: renderReferenceLayer(backgroundLayerElements)}
+				</div>
+
+				{/* Content layer — fixed above background (z-10) */}
+				<div
+					style={{
+						position: "absolute",
+						inset: 0,
+						zIndex: 10,
+						isolation: "isolate",
+						pointerEvents:
+							!previewMode && designerMode === "background" ? "none" : undefined,
+					}}
+				>
+				{designerMode === "content"
+					? renderInteractiveLayer(contentElements)
+					: renderReferenceLayer(contentElements)}
 				</div>{/* end content layer container */}
 					</div>
 				)}

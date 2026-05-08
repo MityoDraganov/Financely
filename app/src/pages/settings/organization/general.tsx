@@ -61,6 +61,7 @@ import { useCurrentOrganization } from "@/hooks/use-current-organization";
 import { useUpdateOrganization } from "@/hooks/repository-hooks/use-organizations";
 import { useUserByClerkId } from "@/hooks/repository-hooks/use-users";
 import { useOrganizationMembers } from "@/hooks/use-organization-members";
+import { useProductsByOrg } from "@/hooks/repository-hooks/use-products";
 import { DuplicateOrganizationDialog } from "@/components/organization/duplicate-organization-dialog";
 import { isAdminOrOwner, ORGANIZATION_ROLES } from "@/core/roles";
 import { functionsService } from "@/services/functions/functions-service";
@@ -181,6 +182,7 @@ export default function OrganizationGeneralPage() {
     isLoading: isOrganizationMembersLoading,
   } = useOrganizationMembers(organization?.id);
   const updateOrganization = useUpdateOrganization();
+  const { data: organizationProducts = [] } = useProductsByOrg(organization?.id);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isDuplicateDialogOpen, setIsDuplicateDialogOpen] = useState(false);
   const [languagePopoverOpen, setLanguagePopoverOpen] = useState(false);
@@ -191,6 +193,13 @@ export default function OrganizationGeneralPage() {
   const [isConfirmEmailTransferOpen, setIsConfirmEmailTransferOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
+  const [pendingCurrencyChange, setPendingCurrencyChange] = useState<{
+    formData: OrganizationGeneralForm;
+    previousCurrency: string;
+    nextCurrency: string;
+    mismatchedCount: number;
+  } | null>(null);
+  const [isSyncingCurrencies, setIsSyncingCurrencies] = useState(false);
   
   const organizationGeneralSchema = getOrganizationGeneralSchema();
 
@@ -420,95 +429,157 @@ export default function OrganizationGeneralPage() {
     }
   }, [organization, reset]);
 
+  const buildOrganizationUpdate = (data: OrganizationGeneralForm) => {
+    const hasAddressValues = Boolean(
+      data.address || data.city || data.state || data.zipCode || data.country,
+    );
+    const address = hasAddressValues
+      ? {
+          ...(data.address ? { street: data.address } : {}),
+          ...(data.city ? { city: data.city } : {}),
+          ...(data.state ? { state: data.state } : {}),
+          ...(data.zipCode ? { zipCode: data.zipCode } : {}),
+          ...(data.country ? { country: data.country } : {}),
+        }
+      : null;
+
+    // Use dot-path updates and deleteField() for cleared optional fields.
+    // This avoids sending undefined values to Firestore.
+    const updateData: Record<string, unknown> = {
+      name: data.name,
+      description: data.description?.trim() ?? "",
+    };
+
+    if (data.website) {
+      updateData["website"] = data.website;
+    } else if (organization?.website) {
+      updateData["website"] = deleteField();
+    }
+
+    if (data.email) {
+      updateData["settings.email"] = data.email;
+    } else if (organization?.settings?.email) {
+      updateData["settings.email"] = deleteField();
+    }
+
+    if (data.phone) {
+      updateData["settings.phone"] = data.phone;
+    } else if (organization?.settings?.phone) {
+      updateData["settings.phone"] = deleteField();
+    }
+
+    if (address) {
+      updateData["settings.address"] = address;
+    } else if (organization?.settings?.address) {
+      updateData["settings.address"] = deleteField();
+    }
+
+    const normalizedPublicSlug = normalizePublicSlug(data.publicSlug?.trim() || "");
+    if (normalizedPublicSlug) {
+      updateData["settings.publicPages.orgSlug"] = normalizedPublicSlug;
+    } else if (organization?.settings?.publicPages?.orgSlug) {
+      updateData["settings.publicPages.orgSlug"] = deleteField();
+    }
+
+    updateData["settings.defaultLanguage"] = data.defaultLanguage || "en";
+    updateData["settings.defaultCurrency"] = data.defaultCurrency || "USD";
+    updateData["settings.paymentFallback"] = {
+      referenceFormat: data.paymentReferenceFormat?.trim() || "{{invoiceNumber}}",
+      bankInstructions:
+        data.paymentBankInstructions?.trim() ||
+        "Online payment is unavailable. Use bank transfer and include the payment reference.",
+      bankAccountName: data.paymentBankAccountName?.trim() || "",
+      bankAccountNumber: data.paymentBankAccountNumber?.trim() || "",
+      iban: data.paymentIban?.trim() || "",
+      swift: data.paymentSwift?.trim() || "",
+      beneficiaryName: data.paymentBeneficiaryName?.trim() || "",
+      beneficiaryAddress: data.paymentBeneficiaryAddress?.trim() || "",
+    };
+    updateData["settings.currencyRates"] = {
+      overrides: data.currencyRateOverrides,
+    };
+    if ((organization?.settings as { multiCurrency?: unknown } | undefined)?.multiCurrency) {
+      updateData["settings.multiCurrency"] = deleteField();
+    }
+    if ((organization?.settings as { currency?: string } | undefined)?.currency) {
+      updateData["settings.currency"] = deleteField();
+    }
+
+    return updateData;
+  };
+
+  const persistOrganization = async (
+    data: OrganizationGeneralForm,
+    options: { syncProductCurrencies: boolean },
+  ) => {
+    if (!organization) return;
+
+    const updateData = buildOrganizationUpdate(data);
+
+    await updateOrganization.mutateAsync({
+      id: organization.id,
+      data: updateData as Partial<Organization>,
+    });
+
+    if (options.syncProductCurrencies) {
+      setIsSyncingCurrencies(true);
+      try {
+        const result = await functionsService.syncProductCurrencies({
+          organizationId: organization.id,
+        });
+        await queryClient.invalidateQueries({ queryKey: ["products"] });
+        if (result.failedCount > 0) {
+          toast.warning(
+            t("settings.organization.general.toasts.productCurrenciesPartial", {
+              updated: result.updatedCount,
+              failed: result.failedCount,
+            }),
+          );
+        } else {
+          toast.success(
+            t("settings.organization.general.toasts.productCurrenciesSynced", {
+              count: result.updatedCount,
+            }),
+          );
+        }
+      } catch (error) {
+        console.error("Failed to sync product currencies:", error);
+        toast.error(
+          t("settings.organization.general.toasts.productCurrenciesFailed"),
+        );
+      } finally {
+        setIsSyncingCurrencies(false);
+      }
+    }
+
+    toast.success(t("settings.organization.general.toasts.updated"));
+    setHasUnsavedChanges(false);
+  };
+
   const onSubmit = async (data: OrganizationGeneralForm) => {
     if (!organization) return;
 
-    try {
-      const hasAddressValues = Boolean(
-        data.address || data.city || data.state || data.zipCode || data.country,
-      );
-      const address = hasAddressValues
-        ? {
-            ...(data.address ? { street: data.address } : {}),
-            ...(data.city ? { city: data.city } : {}),
-            ...(data.state ? { state: data.state } : {}),
-            ...(data.zipCode ? { zipCode: data.zipCode } : {}),
-            ...(data.country ? { country: data.country } : {}),
-          }
-        : null;
+    const previousCurrency = (organization.settings?.defaultCurrency || "USD").toUpperCase();
+    const nextCurrency = (data.defaultCurrency || "USD").toUpperCase();
 
-      // Use dot-path updates and deleteField() for cleared optional fields.
-      // This avoids sending undefined values to Firestore.
-      const updateData: Record<string, unknown> = {
-        name: data.name,
-        description: data.description?.trim() ?? "",
-      };
-
-      if (data.website) {
-        updateData["website"] = data.website;
-      } else if (organization.website) {
-        updateData["website"] = deleteField();
-      }
-
-      if (data.email) {
-        updateData["settings.email"] = data.email;
-      } else if (organization.settings?.email) {
-        updateData["settings.email"] = deleteField();
-      }
-
-      if (data.phone) {
-        updateData["settings.phone"] = data.phone;
-      } else if (organization.settings?.phone) {
-        updateData["settings.phone"] = deleteField();
-      }
-
-      if (address) {
-        updateData["settings.address"] = address;
-      } else if (organization.settings?.address) {
-        updateData["settings.address"] = deleteField();
-      }
-
-      const normalizedPublicSlug = normalizePublicSlug(data.publicSlug?.trim() || "");
-      if (normalizedPublicSlug) {
-        updateData["settings.publicPages.orgSlug"] = normalizedPublicSlug;
-      } else if (organization.settings?.publicPages?.orgSlug) {
-        updateData["settings.publicPages.orgSlug"] = deleteField();
-      }
-
-      updateData["settings.defaultLanguage"] = data.defaultLanguage || "en";
-      updateData["settings.defaultCurrency"] = data.defaultCurrency || "USD";
-      updateData["settings.paymentFallback"] = {
-        referenceFormat: data.paymentReferenceFormat?.trim() || "{{invoiceNumber}}",
-        bankInstructions:
-          data.paymentBankInstructions?.trim() ||
-          "Online payment is unavailable. Use bank transfer and include the payment reference.",
-        bankAccountName: data.paymentBankAccountName?.trim() || "",
-        bankAccountNumber: data.paymentBankAccountNumber?.trim() || "",
-        iban: data.paymentIban?.trim() || "",
-        swift: data.paymentSwift?.trim() || "",
-        beneficiaryName: data.paymentBeneficiaryName?.trim() || "",
-        beneficiaryAddress: data.paymentBeneficiaryAddress?.trim() || "",
-      };
-      updateData["settings.currencyRates"] = {
-        overrides: data.currencyRateOverrides,
-      };
-      if ((organization.settings as { multiCurrency?: unknown } | undefined)?.multiCurrency) {
-        updateData["settings.multiCurrency"] = deleteField();
-      }
-      if ((organization.settings as { currency?: string } | undefined)?.currency) {
-        updateData["settings.currency"] = deleteField();
-      }
-
-      await updateOrganization.mutateAsync({
-        id: organization.id,
-        data: updateData as Partial<Organization>,
+    if (previousCurrency !== nextCurrency) {
+      const mismatchedCount = organizationProducts.filter(
+        (product) => (product.currency || "").toUpperCase() !== nextCurrency,
+      ).length;
+      setPendingCurrencyChange({
+        formData: data,
+        previousCurrency,
+        nextCurrency,
+        mismatchedCount,
       });
+      return;
+    }
 
-      toast.success(t('settings.organization.general.toasts.updated'));
-      setHasUnsavedChanges(false);
+    try {
+      await persistOrganization(data, { syncProductCurrencies: false });
     } catch (error) {
       console.error("Failed to update organization:", error);
-      toast.error(t('settings.organization.general.toasts.updateFailed'));
+      toast.error(t("settings.organization.general.toasts.updateFailed"));
     }
   };
 
@@ -1254,6 +1325,101 @@ export default function OrganizationGeneralPage() {
               }}
             >
               {deleteOrganizationMutation.isPending ? "Deleting..." : "Delete organization"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={pendingCurrencyChange !== null}
+        onOpenChange={(open) => {
+          if (!open && !updateOrganization.isPending && !isSyncingCurrencies) {
+            setPendingCurrencyChange(null);
+          }
+        }}
+      >
+        <AlertDialogContent className="min-w-0 max-h-[min(90dvh,calc(100vh-2rem))] gap-4 overflow-y-auto sm:max-w-md">
+          <AlertDialogHeader className="min-w-0 text-left">
+            <AlertDialogTitle className="wrap-break-word">
+              {t("settings.organization.general.currencyChangeDialog.title")}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="min-w-0 max-w-full space-y-3 text-sm wrap-break-word text-pretty">
+                <p>
+                  {t("settings.organization.general.currencyChangeDialog.summary", {
+                    from: pendingCurrencyChange?.previousCurrency,
+                    to: pendingCurrencyChange?.nextCurrency,
+                  })}
+                </p>
+                {pendingCurrencyChange && pendingCurrencyChange.mismatchedCount > 0 ? (
+                  <p>
+                    {t("settings.organization.general.currencyChangeDialog.affected", {
+                      count: pendingCurrencyChange.mismatchedCount,
+                    })}
+                  </p>
+                ) : (
+                  <p>
+                    {t("settings.organization.general.currencyChangeDialog.noProducts")}
+                  </p>
+                )}
+                <p className="font-medium text-foreground">
+                  {t("settings.organization.general.currencyChangeDialog.warning")}
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="w-full min-w-0 flex-col gap-2 sm:flex-col">
+            <AlertDialogCancel
+              className="mt-0 w-full shrink-0"
+              disabled={updateOrganization.isPending || isSyncingCurrencies}
+            >
+              {t("settings.organization.general.currencyChangeDialog.cancel")}
+            </AlertDialogCancel>
+            {pendingCurrencyChange && pendingCurrencyChange.mismatchedCount > 0 && (
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full shrink-0"
+                disabled={updateOrganization.isPending || isSyncingCurrencies}
+                onClick={async () => {
+                  if (!pendingCurrencyChange) return;
+                  const data = pendingCurrencyChange.formData;
+                  setPendingCurrencyChange(null);
+                  try {
+                    await persistOrganization(data, { syncProductCurrencies: false });
+                  } catch (error) {
+                    console.error("Failed to update organization:", error);
+                    toast.error(t("settings.organization.general.toasts.updateFailed"));
+                  }
+                }}
+              >
+                {t("settings.organization.general.currencyChangeDialog.saveOrgOnly")}
+              </Button>
+            )}
+            <AlertDialogAction
+              className="w-full shrink-0 whitespace-normal"
+              disabled={updateOrganization.isPending || isSyncingCurrencies}
+              onClick={async () => {
+                if (!pendingCurrencyChange) return;
+                const data = pendingCurrencyChange.formData;
+                const shouldSync = pendingCurrencyChange.mismatchedCount > 0;
+                setPendingCurrencyChange(null);
+                try {
+                  await persistOrganization(data, { syncProductCurrencies: shouldSync });
+                } catch (error) {
+                  console.error("Failed to update organization:", error);
+                  toast.error(t("settings.organization.general.toasts.updateFailed"));
+                }
+              }}
+            >
+              {updateOrganization.isPending || isSyncingCurrencies
+                ? t("settings.organization.general.currencyChangeDialog.saving")
+                : pendingCurrencyChange && pendingCurrencyChange.mismatchedCount > 0
+                  ? t(
+                      "settings.organization.general.currencyChangeDialog.saveAndSync",
+                      { count: pendingCurrencyChange.mismatchedCount },
+                    )
+                  : t("settings.organization.general.currencyChangeDialog.save")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

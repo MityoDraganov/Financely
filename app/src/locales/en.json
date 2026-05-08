@@ -2915,9 +2915,27 @@
 				"cancel": "Cancel",
 				"saving": "Saving...",
 				"saveChanges": "Save Changes",
+				"currencyChangeDialog": {
+					"title": "Update product currencies?",
+					"summary": "You're changing the organization base currency from {{from}} to {{to}}.",
+					"affected": "{{count}} product currently uses a different currency.",
+					"affected_other": "{{count}} products currently use a different currency.",
+					"noProducts": "No products need their currency updated.",
+					"warning": "Prices will not be converted. Only the currency code on each product will change. Review your product prices afterwards.",
+					"cancel": "Cancel",
+					"saveOrgOnly": "Save organization only",
+					"saveAndSync": "Save and update {{count}} product",
+					"saveAndSync_other": "Save and update {{count}} products",
+					"save": "Save",
+					"saving": "Saving..."
+				},
 				"toasts": {
 					"updated": "Organization settings updated successfully",
-					"updateFailed": "Failed to update organization settings"
+					"updateFailed": "Failed to update organization settings",
+					"productCurrenciesSynced": "Updated currency on {{count}} product",
+					"productCurrenciesSynced_other": "Updated currency on {{count}} products",
+					"productCurrenciesPartial": "Updated {{updated}} products, {{failed}} failed. Try again or contact support.",
+					"productCurrenciesFailed": "Failed to update product currencies"
 				}
 			},
 			"branding": {

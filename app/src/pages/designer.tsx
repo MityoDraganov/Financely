@@ -4498,18 +4498,8 @@ export default function TemplateDesignerPage() {
 			<div ref={canvasViewportRef} className="flex-1 overflow-auto">
 				<DesignerCanvas
 					template={currentTemplate}
-					draftElements={state.previewMode
-						// Preview: always show content layer as the active (foreground) layer
-						? (draftElements ?? currentTemplate?.elements ?? [])
-						: designerMode === "background"
-							? (draftBackgroundElements ?? currentTemplate?.backgroundElements ?? [])
-							: draftElements}
-					backgroundElements={state.previewMode
-						// Preview: always show background layer behind content
-						? (draftBackgroundElements ?? currentTemplate?.backgroundElements ?? [])
-						: designerMode === "content"
-							? (draftBackgroundElements ?? currentTemplate?.backgroundElements ?? [])
-							: (draftElements ?? currentTemplate?.elements ?? [])}
+					draftElements={draftElements ?? currentTemplate?.elements ?? []}
+					backgroundElements={draftBackgroundElements ?? currentTemplate?.backgroundElements ?? []}
 					designerMode={designerMode}
 					state={state}
 					hoveredElementId={hoveredElementId}

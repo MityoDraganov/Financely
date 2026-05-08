@@ -634,6 +634,16 @@ export const functionsService: FunctionsService = {
     return result.data;
   },
 
+  async syncProductCurrencies(payload) {
+    type SyncProductCurrenciesPayload = Parameters<FunctionsService["syncProductCurrencies"]>[0];
+    type SyncProductCurrenciesResponse = Awaited<ReturnType<FunctionsService["syncProductCurrencies"]>>;
+    const result = await httpsCallable<
+      SyncProductCurrenciesPayload,
+      SyncProductCurrenciesResponse
+    >(firebase.functions, "syncProductCurrencies")(payload);
+    return result.data;
+  },
+
   async backfillProductPublicPages(payload) {
     type BackfillProductPublicPagesPayload = Parameters<FunctionsService["backfillProductPublicPages"]>[0];
     type BackfillProductPublicPagesResponse = Awaited<ReturnType<FunctionsService["backfillProductPublicPages"]>>;

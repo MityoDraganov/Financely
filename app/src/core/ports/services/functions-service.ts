@@ -732,6 +732,22 @@ export interface FunctionsService {
   }): Promise<{ id: string }>;
 
   /**
+   * Sync every product in an organization to use the organization's current
+   * default currency. Numeric prices are NOT converted; only the `currency`
+   * field is updated. Use after changing the organization's default currency
+   * to keep products writable under Firestore rules.
+   */
+  syncProductCurrencies(payload: {
+    organizationId: string;
+  }): Promise<{
+    scannedCount: number;
+    updatedCount: number;
+    skippedCount: number;
+    failedCount: number;
+    currency: string;
+  }>;
+
+  /**
    * Queue one-time public-page metadata generation for existing products.
    * This only queues products that are missing/incomplete unless force=true.
    */

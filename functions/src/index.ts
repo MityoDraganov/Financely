@@ -168,6 +168,7 @@ export { generateConsentBanner } from "./functions/generate-consent-banner";
 
 // Product functions
 export { createProduct } from "./functions/create-product";
+export { syncProductCurrencies } from "./functions/sync-product-currencies";
 
 // Content functions - Metaobjects and Files
 export { createMetaobjectDefinition } from "./functions/create-metaobject-definition";
