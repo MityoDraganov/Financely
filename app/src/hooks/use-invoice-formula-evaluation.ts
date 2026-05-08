@@ -18,6 +18,8 @@ type TableConfig = {
 	}>;
 };
 
+const MAX_FORMULA_PROPAGATION_PASSES = 24;
+
 /**
  * Round currency values to 2 decimal places
  */
@@ -189,62 +191,81 @@ export function useInvoiceFormulaEvaluation({
 				return { data: dataToEvaluate, updatedFields: [] };
 			}
 
-			// Create a map of element IDs to their current values
-			const elementValues = new Map<string, number>();
-			for (const el of elements) {
-				if (
-					(el.type === "input" && el.variant === "number") ||
-					el.type === "currency"
-				) {
-					if (el.binding) {
-						const value = getValueFromData(dataToEvaluate, el.binding);
-						if (typeof value === "number") {
-							elementValues.set(el.id, value);
+			const rebuildElementValues = (
+				data: Record<string, InvoiceDataValue>
+			): Map<string, number> => {
+				const map = new Map<string, number>();
+				for (const el of elements) {
+					if (
+						(el.type === "input" && el.variant === "number") ||
+						el.type === "currency"
+					) {
+						if (el.binding) {
+							const value = getValueFromData(data, el.binding);
+							if (typeof value === "number") {
+								map.set(el.id, value);
+							}
 						}
 					}
 				}
-			}
+				return map;
+			};
 
-			// Create a shallow copy (we'll update nested values directly)
 			const updatedData = { ...dataToEvaluate };
-			const updatedFields: Array<{ binding: string; value: number }> = [];
+			const updatedFieldsByBinding = new Map<string, number>();
 
-			for (const { element, binding, formula, tableContext } of formulaElements) {
-				try {
-					// Process formula for table context
-					let processedFormula = formula;
-					if (tableContext) {
-						for (const col of tableContext.columns) {
-							const colBinding = col.binding || col.id;
-							const fullPath = `${tableContext.itemsBinding}[${tableContext.rowIndex}].${colBinding}`;
-							const regex = new RegExp(`\\b${colBinding.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b(?![\\[\\]])`, 'g');
-							processedFormula = processedFormula.replace(regex, fullPath);
-						}
-					}
-					
-					const result = FormulaService.evaluate(
-						processedFormula,
-						updatedData,
-						elements,
-						elementValues
-					);
+			for (let pass = 0; pass < MAX_FORMULA_PROPAGATION_PASSES; pass++) {
+				const elementValues = rebuildElementValues(updatedData);
+				let changedThisPass = false;
 
-					const currentValue = getBindingValue(updatedData, binding);
-					const roundedResult = isCurrencyField(binding, selectedTemplate, tableConfigs)
-						? roundCurrency(result)
-						: result;
-					
-					if (currentValue !== roundedResult) {
-						setBindingValue(updatedData, binding, roundedResult);
-						if (typeof roundedResult === "number") {
-							elementValues.set(element.id, roundedResult);
-							updatedFields.push({ binding, value: roundedResult });
+				for (const { element, binding, formula, tableContext } of formulaElements) {
+					try {
+						let processedFormula = formula;
+						if (tableContext) {
+							for (const col of tableContext.columns) {
+								const colBinding = col.binding || col.id;
+								const fullPath = `${tableContext.itemsBinding}[${tableContext.rowIndex}].${colBinding}`;
+								const regex = new RegExp(
+									`\\b${colBinding.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b(?![\\[\\]])`,
+									"g"
+								);
+								processedFormula = processedFormula.replace(regex, fullPath);
+							}
 						}
+
+						const result = FormulaService.evaluate(
+							processedFormula,
+							updatedData,
+							elements,
+							elementValues
+						);
+
+						const currentValue = getBindingValue(updatedData, binding);
+						const roundedResult = isCurrencyField(binding, selectedTemplate, tableConfigs)
+							? roundCurrency(result)
+							: result;
+
+						if (currentValue !== roundedResult) {
+							setBindingValue(updatedData, binding, roundedResult);
+							if (typeof roundedResult === "number") {
+								elementValues.set(element.id, roundedResult);
+								updatedFieldsByBinding.set(binding, roundedResult);
+								changedThisPass = true;
+							}
+						}
+					} catch {
+						// Silently fail - formula errors shouldn't break the form
 					}
-				} catch (error) {
-					// Silently fail - formula errors shouldn't break the form
+				}
+
+				if (!changedThisPass) {
+					break;
 				}
 			}
+
+			const updatedFields = Array.from(updatedFieldsByBinding.entries()).map(
+				([binding, value]) => ({ binding, value })
+			);
 
 			return { data: updatedData, updatedFields };
 		},
