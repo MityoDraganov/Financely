@@ -75,6 +75,8 @@ export const createInvoice = onCall<CreateInvoiceInput, Promise<{ id: string }>>
     region: "us-central1",
     cors: true,
     secrets: [stripeSecretKey],
+    memory: "512MiB",
+    minInstances: 1,
   },
   async (request) => {
     try {

@@ -20,7 +20,9 @@ const ONBOARDING_COMPLETE_KEY = "financely_onboarding_complete";
 export function useOnboardingStatus() {
   const { isLoaded: isClerkLoaded, isSignedIn, userId } = useAuth();
   const { isAuthReady } = useAuthReady();
-  const { data: dbUser, isLoading: isUserLoading, error: userError } = useUserByClerkId(userId);
+  const { data: dbUser, isLoading: isUserLoading, error: userError } = useUserByClerkId(
+    userId ?? undefined
+  );
   
   // Get organizations by organizationRoles (memberIds query doesn't work with Firestore rules)
   const organizationIds = dbUser?.organizationRoles ? Object.keys(dbUser.organizationRoles) : [];

@@ -10,7 +10,13 @@ import chromium from "@sparticuz/chromium";
 import { buildDataContext } from "../services/data-context-builder";
 import { resolveBinding } from "../utils/binding-resolver";
 import { DataContext } from "../core/entities/data-context";
-import { paginateTemplate, type RenderPage } from "../utils/template-pagination";
+import {
+  paginateTemplate,
+  type ElementSlice,
+  type RenderPage,
+} from "../utils/template-pagination";
+import { resolveTemplateMarginsPx } from "../utils/print-margins";
+import { computeTableRuntimeLayout } from "../utils/template-table-layout";
 import { getTableGridTemplateColumns } from "../utils/table-column-width";
 import { getTableTextBehaviorInlineCss, normalizeTableTextBehavior } from "../utils/table-text-behavior";
 import {
@@ -341,8 +347,7 @@ export function generateInvoiceHTML(
     return String(value);
   }
 
-  // Get margins from template
-  const margins = template.pageSettings?.margins ?? template.brand?.margins ?? { top: 96, right: 96, bottom: 96, left: 96 };
+  const margins = resolveTemplateMarginsPx(template.pageSettings?.margins, template.brand?.margins);
   const usableHeight = size.height - margins.top - margins.bottom;
   const getTableBaselineHeight = (table: Extract<TemplateElement, { type: "table" }>): number => {
     const minimumContentHeight = table.headerHeight + table.rowHeight;
@@ -360,15 +365,27 @@ export function generateInvoiceHTML(
   const calculateElementPosition = (
     el: TemplateElement,
     pageIndex: number,
-    adjustedY: number
-  ): { x: number; y: number } => {
+    adjustedY: number,
+    elementSlice?: ElementSlice
+  ): { x: number; y: number; width: number; height: number } => {
     const pageStartY = margins.top + pageIndex * usableHeight;
-    const yInUsableArea = adjustedY - pageStartY;
+    const effectiveY = adjustedY + (elementSlice?.offsetY ?? 0);
+    const effectiveHeight = elementSlice?.height ?? el.height;
+    const yInUsableArea = effectiveY - pageStartY;
     const yOnPage = margins.top + yInUsableArea;
-    
+
+    const clampedX = Math.max(margins.left, Math.min(el.x, size.width - margins.right));
+    const clampedY = Math.max(margins.top, Math.min(yOnPage, size.height - margins.bottom));
+    const maxWidth = Math.max(0, size.width - margins.right - clampedX);
+    const maxHeight = Math.max(0, size.height - margins.bottom - clampedY);
+    const clampedWidth = Math.max(0, Math.min(el.width, maxWidth));
+    const clampedHeight = Math.max(0, Math.min(effectiveHeight, maxHeight));
+
     return {
-      x: el.x,
-      y: yOnPage,
+      x: clampedX,
+      y: clampedY,
+      width: clampedWidth,
+      height: clampedHeight,
     };
   };
 
@@ -415,8 +432,8 @@ export function generateInvoiceHTML(
         position: absolute;
         left: ${pos.x}px;
         top: ${pos.y}px;
-        width: ${el.width}px;
-        height: ${el.height}px;
+        width: ${pos.width}px;
+        height: ${pos.height}px;
         transform: rotate(${el.rotation}deg);
         z-index: 0;
         pointer-events: none;
@@ -459,23 +476,28 @@ export function generateInvoiceHTML(
     const bgHtml = renderBackgroundElements(page);
     const contentHtml = page.elements.map((el) => {
       if (!el.visible) return "";
-      // Group containers are visual-only; skip in PDF
-      if (el.type === "group") return "";
 
-      // Prefer pagination-resolved Y to keep rendering aligned with pagination shifts.
-      let adjustedY = page.elementPositions[el.id] ?? calculateAdjustedY(el);
-      
-      const pos = calculateElementPosition(el, page.pageIndex, adjustedY);
-      
+      const elementSlice = page.elementSlices[el.id];
+      const adjustedY = page.elementPositions[el.id] ?? calculateAdjustedY(el);
+      const pos = calculateElementPosition(el, page.pageIndex, adjustedY, elementSlice);
       const commonStyle = `
         position: absolute;
         left: ${pos.x}px;
         top: ${pos.y}px;
-        width: ${el.width}px;
-        height: ${el.height}px;
+        width: ${pos.width}px;
+        height: ${pos.height}px;
         transform: rotate(${el.rotation}deg);
         z-index: ${el.zIndex || 0};
+        ${elementSlice ? "overflow: hidden;" : ""}
+        box-sizing: border-box;
       `;
+
+      if (el.type === "group") {
+        const g = el as Extract<TemplateElement, { type: "group" }>;
+        const fill = g.backgroundColor?.trim();
+        if (!fill) return "";
+        return `<div style="${commonStyle} background-color: ${fill};"></div>`;
+      }
 
     if (el.type === "text") {
       let display = el.text || "";
@@ -543,12 +565,74 @@ export function generateInvoiceHTML(
     }
 
     if (el.type === "box") {
+      const box = el as Extract<TemplateElement, { type: "box" }>;
+      const fillCss = box.fillGradient
+        ? box.fillGradient.type === "linear"
+          ? `linear-gradient(${box.fillGradient.angle}deg, ${box.fillGradient.colors.join(", ")})`
+          : `radial-gradient(circle, ${box.fillGradient.colors.join(", ")})`
+        : box.fill || "transparent";
+      const sliceOffsetY = elementSlice?.offsetY ?? 0;
+      const isSliced =
+        sliceOffsetY > 0 || Boolean(elementSlice && elementSlice.height < box.height);
+
+      if (isSliced) {
+        const strokeStyle = box.strokeWidth
+          ? `border: ${box.strokeWidth}px ${box.strokeStyle || "solid"} ${box.stroke || "transparent"}`
+          : "";
+        return `
+        <div style="${commonStyle}">
+          <div style="
+            position: absolute;
+            left: 0;
+            top: ${-sliceOffsetY}px;
+            width: 100%;
+            height: ${box.height}px;
+            background: ${fillCss};
+            ${strokeStyle};
+            border-radius: ${box.radius || 0}px;
+            opacity: ${box.opacity ?? 1};
+            box-sizing: border-box;
+          "></div>
+        </div>`;
+      }
+
+      const strokeStyleOuter = box.strokeWidth
+        ? `border: ${box.strokeWidth}px ${box.strokeStyle || "solid"} ${box.stroke || "transparent"}`
+        : "";
       return `
-        <div style="${commonStyle} 
-          background: ${el.fill}; 
-          border: ${el.strokeWidth}px solid ${el.stroke}; 
-          border-radius: ${el.radius}px;
+        <div style="${commonStyle}
+          background: ${fillCss};
+          ${strokeStyleOuter};
+          border-radius: ${box.radius || 0}px;
+          opacity: ${box.opacity ?? 1};
         "></div>
+      `;
+    }
+
+    if (el.type === "path") {
+      const pathEl = el as Extract<TemplateElement, { type: "path" }>;
+      const pathD = pathEl.pathData || "";
+      if (!pathD) return "";
+      const fill = pathEl.fill || "transparent";
+      const sliceOffsetY = elementSlice?.offsetY ?? 0;
+      const isSliced =
+        sliceOffsetY > 0 || Boolean(elementSlice && elementSlice.height < pathEl.height);
+      const svgInner = `
+            <svg width="${pathEl.width}" height="${pathEl.height}" viewBox="0 0 ${pathEl.width} ${pathEl.height}" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" style="opacity: ${pathEl.opacity ?? 1};">
+              <path d="${pathD}" fill="${fill}" />
+            </svg>`;
+      if (isSliced) {
+        return `
+        <div style="${commonStyle}">
+          <div style="position: absolute; left: 0; top: ${-sliceOffsetY}px; width: 100%; height: ${pathEl.height}px;">
+            ${svgInner}
+          </div>
+        </div>`;
+      }
+      return `
+        <div style="${commonStyle}">
+          ${svgInner}
+        </div>
       `;
     }
 
@@ -739,18 +823,28 @@ export function generateInvoiceHTML(
         const headerOverflowVisible = ["wrap", "break-words"].includes(headerTextBehavior.mode);
         const rowOverflowVisible = ["wrap", "break-words"].includes(rowTextBehavior.mode);
         const allItems = (getValueFromContextOrData(el.itemsBinding, dataContext, invoice.data) as Array<Record<string, unknown>>) || [];
-        
-        // Get table slice for this page
-        const slice = page.tableSlices[el.id];
-        const items = slice ? allItems.slice(slice.start, slice.end) : allItems;
-        const showTotals = slice ? slice.isLastSlice : true;
+
+        const layoutWidth = (() => {
+          const clampedX = Math.max(margins.left, Math.min(el.x, size.width - margins.right));
+          const maxWidth = Math.max(0, size.width - margins.right - clampedX);
+          return Math.max(0, Math.min(el.width, maxWidth));
+        })();
+        const runtimeLayout = computeTableRuntimeLayout(el, invoice.data as unknown, {
+          layoutWidth,
+        });
+        const rowHeights = runtimeLayout.rowHeights;
+
+        const tableSlice = page.tableSlices[el.id];
+        const items = tableSlice ? allItems.slice(tableSlice.start, tableSlice.end) : allItems;
+        const showTotals = tableSlice ? tableSlice.isLastSlice : true;
 
         const columnsHTML = el.columns.map((col) => `
           <div style="padding: 4px; min-width: 0; display: flex; align-items: ${headerIsMultiline ? "flex-start" : "center"}; overflow: ${headerOverflowVisible ? "visible" : "hidden"};"><span style="${headerTextCss}${headerTypographyCss}">${col.header}</span></div>
         `).join("");
 
         const rowsHTML = items.map((row, idx) => {
-          const actualIdx = slice ? slice.start + idx : idx;
+          const actualIdx = tableSlice ? tableSlice.start + idx : idx;
+          const rowMinHeight = rowHeights[actualIdx] ?? el.rowHeight;
         const cellsHTML = el.columns.map((col) => {
           const binding = col.binding || col.id;
           const raw = getByPath(row, binding);
@@ -800,7 +894,7 @@ export function generateInvoiceHTML(
             display: grid;
             grid-template-columns: ${columnTracks};
             border-bottom: ${borderStyle};
-            min-height: ${el.rowHeight}px;
+            min-height: ${rowMinHeight}px;
             padding: 4px 0;
           ">
             ${cellsHTML}
@@ -900,7 +994,7 @@ export function generateInvoiceHTML(
             display: grid;
             grid-template-columns: ${columnTracks};
             border-bottom: 1px solid #e5e7eb;
-            min-height: ${el.rowHeight}px;
+            min-height: ${runtimeLayout.totalRowHeight}px;
           ">
             ${totalsCellsHTML}
           </div>
@@ -909,10 +1003,12 @@ export function generateInvoiceHTML(
 
       // Calculate actual table height for this slice
         const headerHeight = el.headerHeight || 28;
-        const rowHeight = el.rowHeight || 28;
-        const actualContentHeight = items.length * rowHeight;
-        const totalsHeight = totalsHTML ? rowHeight : 0;
-        const totalTableHeight = headerHeight + actualContentHeight + totalsHeight;
+        const sliceBodyHeight = items.reduce((sum, _, idx) => {
+          const actualIdx = tableSlice ? tableSlice.start + idx : idx;
+          return sum + (rowHeights[actualIdx] ?? el.rowHeight);
+        }, 0);
+        const totalsHeight = totalsHTML ? runtimeLayout.totalRowHeight : 0;
+        const totalTableHeight = headerHeight + sliceBodyHeight + totalsHeight;
         
         return `
           <div style="${commonStyle}; height: ${totalTableHeight}px;">

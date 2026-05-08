@@ -420,9 +420,18 @@ export const pathElementSchema = templateElementBaseSchema.extend({
   scaleStroke: z.boolean().default(false),
 });
 
+const groupInnerPaddingSchema = z.object({
+  top: z.number().min(0).max(200).default(12),
+  right: z.number().min(0).max(200).default(12),
+  bottom: z.number().min(0).max(200).default(12),
+  left: z.number().min(0).max(200).default(12),
+});
+
 export const groupElementSchema = templateElementBaseSchema.extend({
   type: z.literal("group"),
   label: z.string().optional(),
+  backgroundColor: z.string().optional(),
+  innerPadding: groupInnerPaddingSchema.optional(),
 });
 
 export const templateElementSchema = z.discriminatedUnion("type", [
