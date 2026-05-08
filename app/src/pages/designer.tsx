@@ -1003,7 +1003,9 @@ export default function TemplateDesignerPage() {
 					oldMargins.right !== newMargins.right ||
 					oldMargins.bottom !== newMargins.bottom;
 
-				if (marginsActuallyChanged) {
+				// Only remap when the printable area shrinks; if it grows or stays the same (e.g. margins → 0), keep page-absolute positions.
+				const printableAreaShrunk = newWidth < oldWidth || newHeight < oldHeight;
+				if (marginsActuallyChanged && printableAreaShrunk) {
 					const scaleX = newWidth / oldWidth;
 					const scaleY = newHeight / oldHeight;
 					const sourceElements = partial.elements ?? draftRef.current ?? template.elements ?? [];

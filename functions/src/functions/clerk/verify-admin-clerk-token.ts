@@ -16,6 +16,8 @@ export const verifyAdminClerkToken = onCall(
   {
     secrets: [adminClerkApiSecret],
     cors: true,
+    memory: "512MiB",
+    minInstances: 1,
   },
   async (request) => {
     try {
