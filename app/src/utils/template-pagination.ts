@@ -4,6 +4,7 @@
  */
 
 import type { Template, TemplateElement } from "@/core/entities/template";
+import { resolveGroupInnerPadding } from "@/components/designer/editor-commands";
 import { resolveTemplateMarginsPx } from "./print-margins";
 import { computeTableRuntimeLayout } from "./template-table-layout";
 
@@ -35,7 +36,7 @@ type TableGrowthMeta = {
 	heightDiff: number;
 };
 
-type PlacedExpandedTable = {
+export type PlacedExpandedTable = {
 	table: Extract<TemplateElement, { type: "table" }>;
 	tableOrder: number;
 	originalTop: number;
@@ -60,6 +61,40 @@ function getTableBaselineHeight(
 			? table.height
 			: minimumContentHeight;
 	return Math.max(minimumContentHeight, configuredHeight);
+}
+
+/** Design-time skeleton height (sample rows). Used so inflated `table.height` does not hide runtime growth. */
+function getTableStructuralMinHeight(table: Extract<TemplateElement, { type: "table" }>): number {
+	const rowCount = Math.max(1, table.designRows?.length ?? 1);
+	const bodyHeight = table.rowHeight * rowCount;
+	const footerExtra = table.showFooter ? table.rowHeight : 0;
+	return table.headerHeight + bodyHeight + footerExtra;
+}
+
+/**
+ * Reference height for layout shift: min(structural, configured) so large saved `height` still allows
+ * detecting growth when invoice rows exceed design rows.
+ */
+function getTableLayoutShiftReferenceHeight(table: Extract<TemplateElement, { type: "table" }>): number {
+	const baseline = getTableBaselineHeight(table);
+	const structural = getTableStructuralMinHeight(table);
+	return Math.min(baseline, structural);
+}
+
+type GrowthSegment = {
+	anchorBottom: number;
+	delta: number;
+	sourceOrder: number;
+};
+
+function cumulativeShiftFromGrowth(originalY: number, growthSegments: GrowthSegment[]): number {
+	let sum = 0;
+	for (const seg of growthSegments) {
+		if (originalY >= seg.anchorBottom) {
+			sum += seg.delta;
+		}
+	}
+	return sum;
 }
 
 function getEffectiveElementWidth(
@@ -97,22 +132,15 @@ function resolveYWithExpandedTables(
 	originalY: number,
 	elementHeight: number,
 	placedExpandedTables: PlacedExpandedTable[],
+	growthSegments: GrowthSegment[],
 	options?: { respectZIndexForOverlap?: boolean }
 ): ResolvedElementY {
-	let adjustedY = originalY;
-	let cumulativeGrowthShift = 0;
+	const growthShift = cumulativeShiftFromGrowth(originalY, growthSegments);
+	let adjustedY = originalY + growthShift;
+	const cumulativeGrowthShift = growthShift;
 	let overlapPush = 0;
 
 	for (const placedTable of placedExpandedTables) {
-		if (originalY <= placedTable.originalTop) continue;
-		const shift = Math.max(0, placedTable.actualHeight - placedTable.originalHeight);
-		if (shift <= 0) continue;
-		adjustedY += shift;
-		cumulativeGrowthShift += shift;
-	}
-
-	for (const placedTable of placedExpandedTables) {
-		if (originalY <= placedTable.originalTop) continue;
 		if (
 			options?.respectZIndexForOverlap !== false &&
 			isBehindByZIndex(
@@ -135,6 +163,217 @@ function resolveYWithExpandedTables(
 	}
 
 	return { adjustedY, cumulativeGrowthShift, overlapPush };
+}
+
+function computeRuntimeGroupHeight(
+	group: Extract<TemplateElement, { type: "group" }>,
+	templateElements: TemplateElement[],
+	tableGrowthById: Map<string, TableGrowthMeta>,
+	context: unknown,
+	pageSize: { w: number; h: number },
+	margins: { top: number; right: number; bottom: number; left: number }
+): number {
+	const pad = resolveGroupInnerPadding(group);
+	const children = templateElements.filter((e) => e.groupId === group.id);
+	if (children.length === 0) {
+		return group.height;
+	}
+
+	let maxBottom = group.y;
+	for (const c of children) {
+		let bottom: number;
+		if (c.type === "table") {
+			const meta = tableGrowthById.get(c.id);
+			const layoutWidth = getEffectiveElementWidth(c, pageSize, margins);
+			const layout =
+				meta?.layout ??
+				computeTableRuntimeLayout(c, context, {
+					layoutWidth,
+				});
+			bottom = c.y + layout.totalHeight;
+		} else {
+			bottom = c.y + c.height;
+		}
+		maxBottom = Math.max(maxBottom, bottom);
+	}
+
+	return Math.max(group.height, maxBottom + pad.bottom - group.y);
+}
+
+function buildGrowthSegments(
+	template: Template,
+	tableGrowthById: Map<string, TableGrowthMeta>,
+	context: unknown,
+	pageSize: { w: number; h: number },
+	margins: { top: number; right: number; bottom: number; left: number },
+	elementOrderById: Map<string, number>
+): GrowthSegment[] {
+	const elements = template.elements ?? [];
+	const segments: GrowthSegment[] = [];
+
+	for (const el of elements) {
+		if (!el.visible || el.type !== "group") continue;
+		const g = el as Extract<TemplateElement, { type: "group" }>;
+		const runtimeH = computeRuntimeGroupHeight(
+			g,
+			elements,
+			tableGrowthById,
+			context,
+			pageSize,
+			margins
+		);
+		const delta = runtimeH - g.height;
+		if (delta > 0) {
+			segments.push({
+				anchorBottom: g.y + g.height,
+				delta,
+				sourceOrder: elementOrderById.get(g.id) ?? 0,
+			});
+		}
+	}
+
+	for (const el of elements) {
+		if (!el.visible || el.type !== "table") continue;
+		if (el.groupId) {
+			continue;
+		}
+		const tbl = el;
+		const meta = tableGrowthById.get(tbl.id);
+		const actual =
+			meta?.actualHeight ??
+			computeTableRuntimeLayout(tbl, context, {
+				layoutWidth: getEffectiveElementWidth(tbl, pageSize, margins),
+			}).totalHeight;
+		const refH = getTableLayoutShiftReferenceHeight(tbl);
+		if (actual <= refH) continue;
+		segments.push({
+			anchorBottom: tbl.y + refH,
+			delta: actual - refH,
+			sourceOrder: elementOrderById.get(tbl.id) ?? 0,
+		});
+	}
+
+	return segments.sort((a, b) => {
+		if (a.anchorBottom !== b.anchorBottom) return a.anchorBottom - b.anchorBottom;
+		return a.sourceOrder - b.sourceOrder;
+	});
+}
+
+/**
+ * Vertical positions after runtime table expansion + overlap resolution (matches {@link paginateTemplate}).
+ * Use for preview rendering so fallback Y matches pagination when `page.elementPositions` is unset.
+ */
+export function buildAdjustedYByElementId(
+	template: Template,
+	context: unknown,
+	pageSize: { w: number; h: number }
+): Map<string, number> {
+	const margins = resolveTemplateMarginsPx(template.pageSettings?.margins, template.brand?.margins);
+	const sortedElements = [...(template.elements ?? [])]
+		.filter((el) => el.visible)
+		.sort((a, b) => {
+			if (a.y !== b.y) return a.y - b.y;
+			return (a.zIndex ?? 0) - (b.zIndex ?? 0);
+		});
+	const elementOrderById = new Map<string, number>(
+		(template.elements ?? []).map((el, index) => [el.id, index])
+	);
+	const tableGrowthById = new Map<string, TableGrowthMeta>();
+	for (const el of sortedElements) {
+		if (el.type !== "table") continue;
+		const layoutWidth = getEffectiveElementWidth(el, pageSize, margins);
+		const layout = computeTableRuntimeLayout(el, context, { layoutWidth });
+		const referenceHeight = getTableLayoutShiftReferenceHeight(el);
+		const actualHeight = layout.totalHeight;
+		tableGrowthById.set(el.id, {
+			table: el,
+			layout,
+			originalHeight: referenceHeight,
+			actualHeight,
+			heightDiff: actualHeight - referenceHeight,
+		});
+	}
+
+	const growthSegments = buildGrowthSegments(
+		template,
+		tableGrowthById,
+		context,
+		pageSize,
+		margins,
+		elementOrderById
+	);
+
+	const placedExpandedTables: PlacedExpandedTable[] = [];
+	const result = new Map<string, number>();
+
+	for (const el of sortedElements) {
+		if (el.type === "pageBreak") {
+			continue;
+		}
+
+		if (el.type === "table") {
+			const tbl = el;
+			const tableMeta = tableGrowthById.get(tbl.id);
+			const tableLayout =
+				tableMeta?.layout ??
+				computeTableRuntimeLayout(tbl, context, {
+					layoutWidth: getEffectiveElementWidth(tbl, pageSize, margins),
+				});
+			const tableOrder = elementOrderById.get(el.id) ?? Number.MAX_SAFE_INTEGER;
+			const resolvedTableY = resolveYWithExpandedTables(
+				el,
+				tableOrder,
+				el.y,
+				tableMeta?.actualHeight ?? tableLayout.totalHeight,
+				placedExpandedTables,
+				growthSegments,
+				{ respectZIndexForOverlap: false }
+			);
+			const tableStartY = resolvedTableY.adjustedY;
+			result.set(el.id, tableStartY);
+
+			const tableOriginalHeight =
+				tableMeta?.originalHeight ?? getTableLayoutShiftReferenceHeight(tbl);
+			const tableActualHeight = tableMeta?.actualHeight ?? tableLayout.totalHeight;
+			if (tableActualHeight > tableOriginalHeight) {
+				placedExpandedTables.push({
+					table: tbl,
+					tableOrder,
+					originalTop: tbl.y,
+					originalHeight: tableOriginalHeight,
+					actualHeight: tableActualHeight,
+					top: tableStartY,
+					bottom: tableStartY + tableActualHeight,
+				});
+			}
+			continue;
+		}
+
+		let elementHeight = el.height;
+		if (el.type === "group") {
+			elementHeight = computeRuntimeGroupHeight(
+				el,
+				template.elements ?? [],
+				tableGrowthById,
+				context,
+				pageSize,
+				margins
+			);
+		}
+
+		const elementOrder = elementOrderById.get(el.id) ?? Number.MAX_SAFE_INTEGER;
+		const resolvedElementY = resolveYWithExpandedTables(
+			el,
+			elementOrder,
+			el.y,
+			elementHeight,
+			placedExpandedTables,
+			growthSegments
+		);
+		result.set(el.id, resolvedElementY.adjustedY);
+	}
+
+	return result;
 }
 
 /**
@@ -182,16 +421,25 @@ export function paginateTemplate(
 		if (el.type !== "table") continue;
 		const layoutWidth = getEffectiveElementWidth(el, pageSize, margins);
 		const layout = computeTableRuntimeLayout(el, context, { layoutWidth });
-		const originalHeight = getTableBaselineHeight(el);
+		const referenceHeight = getTableLayoutShiftReferenceHeight(el);
 		const actualHeight = layout.totalHeight;
 		tableGrowthById.set(el.id, {
 			table: el,
 			layout,
-			originalHeight,
+			originalHeight: referenceHeight,
 			actualHeight,
-			heightDiff: actualHeight - originalHeight,
+			heightDiff: actualHeight - referenceHeight,
 		});
 	}
+
+	const growthSegments = buildGrowthSegments(
+		template,
+		tableGrowthById,
+		context,
+		pageSize,
+		margins,
+		elementOrderById
+	);
 
 	let forcedPageShift = 0;
 	const placedExpandedTables: PlacedExpandedTable[] = [];
@@ -223,6 +471,7 @@ export function paginateTemplate(
 				el.y,
 				tableMeta?.actualHeight ?? tableLayout.totalHeight,
 				placedExpandedTables,
+				growthSegments,
 				{ respectZIndexForOverlap: false }
 			);
 			const tableStartY = resolvedTableY.adjustedY;
@@ -331,7 +580,8 @@ export function paginateTemplate(
 				currentTablePageIndex += 1;
 			}
 
-			const tableOriginalHeight = tableMeta?.originalHeight ?? getTableBaselineHeight(tbl);
+			const tableOriginalHeight =
+				tableMeta?.originalHeight ?? getTableLayoutShiftReferenceHeight(tbl);
 			const tableActualHeight = tableMeta?.actualHeight ?? tableLayout.totalHeight;
 			if (tableActualHeight > tableOriginalHeight) {
 				placedExpandedTables.push({
@@ -348,14 +598,25 @@ export function paginateTemplate(
 		} else {
 			// Handle non-table elements
 			const renderElement = el;
-			const elementHeight = renderElement.height;
+			const elementHeight =
+				renderElement.type === "group"
+					? computeRuntimeGroupHeight(
+							renderElement as Extract<TemplateElement, { type: "group" }>,
+							template.elements ?? [],
+							tableGrowthById,
+							context,
+							pageSize,
+							margins
+						)
+					: renderElement.height;
 			const elementOrder = elementOrderById.get(el.id) ?? Number.MAX_SAFE_INTEGER;
 			const resolvedElementY = resolveYWithExpandedTables(
 				renderElement,
 				elementOrder,
 				el.y,
 				elementHeight,
-				placedExpandedTables
+				placedExpandedTables,
+				growthSegments
 			);
 			const elementY = resolvedElementY.adjustedY;
 

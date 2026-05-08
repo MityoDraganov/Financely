@@ -5,7 +5,7 @@
 
 import React from "react";
 import type { Template } from "@/core/entities/template";
-import { paginateTemplate, type RenderPage } from "@/utils/template-pagination";
+import { paginateTemplate, buildAdjustedYByElementId, type RenderPage } from "@/utils/template-pagination";
 import { PAGE_SIZES, sortTemplateElementsForPaintOrder } from "@/utils/template-preview-utils";
 import { renderTemplateElement } from "./template-element-renderers";
 import { renderWatermark } from "./template-watermark";
@@ -66,6 +66,11 @@ export function TemplatePreview({
 	}, [template.id]);
 
 	// Paginate template into multiple pages
+	const adjustedYByElementId = React.useMemo(() => {
+		void fontMetricsVersion;
+		return buildAdjustedYByElementId(template, context, size);
+	}, [template, context, size, fontMetricsVersion]);
+
 	const pages = React.useMemo(() => {
 		// Ensure pagination recomputes after font metrics updates.
 		void fontMetricsVersion;
@@ -94,6 +99,7 @@ export function TemplatePreview({
 			templateElements: template.elements ?? [],
 			margins,
 			onFieldClick,
+			adjustedYByElementId,
 		};
 
 		return (

@@ -3,7 +3,7 @@ import { FileText } from "lucide-react";
 import type { Template } from "@/core/entities/template";
 import { PAGE_SIZES, sortTemplateElementsForPaintOrder } from "@/utils/template-preview-utils";
 import { renderTemplateElement } from "./template-element-renderers";
-import { paginateTemplate } from "@/utils/template-pagination";
+import { paginateTemplate, buildAdjustedYByElementId } from "@/utils/template-pagination";
 import { resolveTemplateMarginsPx } from "@/utils/print-margins";
 
 interface Props {
@@ -96,6 +96,7 @@ export function TemplateCardPreview({ template }: TemplateCardPreviewProps) {
         pageSize: size,
         templateElements: template.elements ?? [],
         margins,
+        adjustedYByElementId: buildAdjustedYByElementId(template, {}, size),
       };
 
       // Calculate scale to fit full width in card

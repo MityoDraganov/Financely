@@ -27,6 +27,8 @@ type RenderContext = {
 	margins: { top: number; right: number; bottom: number; left: number };
 	onFieldClick?: (binding: string) => void;
 	isBackground?: boolean;
+	/** When set, Y offsets match pagination expansion layout (runtime table height + overlap). */
+	adjustedYByElementId?: Map<string, number>;
 };
 
 type ElementStyle = React.CSSProperties;
@@ -1109,16 +1111,23 @@ export function renderTemplateElement(
 	el: TemplateElement,
 	renderContext: RenderContext
 ): React.ReactNode {
-	const { context, page, pageIndex, pageSize, templateElements, margins, isBackground } = renderContext;
+	const { context, page, pageIndex, pageSize, templateElements, margins, isBackground, adjustedYByElementId } =
+		renderContext;
+
+	const resolveContentAdjustedY = (): number => {
+		if (isBackground) return el.y;
+		return (
+			adjustedYByElementId?.get(el.id) ??
+			page.elementPositions[el.id] ??
+			calculateAdjustedY(el, templateElements, context, pageSize, margins)
+		);
+	};
 
 	if (el.type === "group") {
 		const g = el as Extract<TemplateElement, { type: "group" }>;
 		const fill = g.backgroundColor?.trim();
 		const elementSlice = isBackground ? undefined : page.elementSlices[el.id];
-		const adjustedY = isBackground
-			? el.y
-			: (page.elementPositions[el.id] ??
-				calculateAdjustedY(el, templateElements, context, pageSize, margins));
+		const adjustedY = resolveContentAdjustedY();
 		const style = calculateElementStyle(el, adjustedY, pageIndex, pageSize, margins, elementSlice);
 		return (
 			<div
@@ -1136,10 +1145,7 @@ export function renderTemplateElement(
 
 	// Background elements are positioned at their stored coordinates, not paginated
 	const elementSlice = isBackground ? undefined : page.elementSlices[el.id];
-	const adjustedY = isBackground
-		? el.y
-		: (page.elementPositions[el.id] ??
-		   calculateAdjustedY(el, templateElements, context, pageSize, margins));
+	const adjustedY = resolveContentAdjustedY();
 	const style = calculateElementStyle(el, adjustedY, pageIndex, pageSize, margins, elementSlice);
 
 	// Background elements don't capture pointer events
